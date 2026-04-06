@@ -1,0 +1,33 @@
+
+### Create a ticket
+POST http://localhost:8080/api/tickets
+Content-Type: application/json
+
+{
+  "title": "Logout issue after reset",
+  "description": "Can't log out after resetting password. The system shows an error message.",
+  "category": "ACCOUNT",
+  "priority": "MEDIUM",
+  "createdByUserId": "usr_9d2afd7e",
+  "tags": ["login", "account"],
+  "customFields": {
+    "browser": "Chrome",
+    "os": "macOS"
+  }
+}
+
+### Create a user
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+  "email": "customer@example.com",
+  "password": "ChangeMe123!",
+  "firstName": "Sam",
+  "lastName": "Taylor",
+  "role": "CUSTOMER",
+  "isActive": true,
+  "emailVerified": false,
+  "department": "GENERAL",
+  "managerId": "usr_admin001"
+}

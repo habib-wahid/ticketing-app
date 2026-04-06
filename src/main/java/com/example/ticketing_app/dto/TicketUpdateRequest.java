@@ -16,7 +16,7 @@ public record TicketUpdateRequest(
 		TicketPriority priority,
 		TicketStatus status,
 		String assignedToUserId,
-		List<@Size(max = 20) String> tags,
+		@Size(max = 5) List<@Size(max = 20) String> tags,
 		Map<String, Object> customFields) {
 }
 

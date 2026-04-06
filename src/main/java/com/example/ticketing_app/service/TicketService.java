@@ -1,6 +1,7 @@
 package com.example.ticketing_app.service;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -11,12 +12,28 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.example.ticketing_app.dto.TicketCreateRequest;
+import com.example.ticketing_app.dto.TicketAttachmentResponse;
+import com.example.ticketing_app.dto.TicketAuthorResponse;
+import com.example.ticketing_app.dto.TicketCommentCreateRequest;
+import com.example.ticketing_app.dto.TicketCommentDeleteRequest;
+import com.example.ticketing_app.dto.TicketCommentResponse;
+import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
+import com.example.ticketing_app.dto.TicketCreatedByResponse;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.TicketSlaEventResponse;
+import com.example.ticketing_app.dto.TicketSlaSummary;
+import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.Ticket;
+import com.example.ticketing_app.entity.TicketAttachment;
+import com.example.ticketing_app.entity.TicketAuthor;
+import com.example.ticketing_app.entity.TicketComment;
+import com.example.ticketing_app.entity.TicketCreatedBy;
 import com.example.ticketing_app.entity.TicketPriority;
+import com.example.ticketing_app.entity.TicketSlaEvent;
 import com.example.ticketing_app.entity.TicketStatus;
+import com.example.ticketing_app.entity.TicketStatusHistory;
 import com.example.ticketing_app.entity.User;
 import com.example.ticketing_app.entity.UserRole;
 import com.example.ticketing_app.exception.BadRequestException;
@@ -27,6 +44,9 @@ import com.example.ticketing_app.repository.UserRepository;
 
 @Service
 public class TicketService {
+
+	private static final int MAX_TAGS = 5;
+	private static final String SYSTEM_ACTOR = "system";
 
 	private final TicketRepository ticketRepository;
 	private final UserRepository userRepository;
@@ -55,26 +75,37 @@ public class TicketService {
 				.orElseThrow(() -> new ResourceNotFoundException("Created-by user not found: " + request.createdByUserId()));
 
 		String assignedToUserId = normalize(request.assignedToUserId());
+		if (createdBy.getRole() == UserRole.CUSTOMER && assignedToUserId != null) {
+			throw new BadRequestException("Customers cannot assign tickets to agents");
+		}
 		if (assignedToUserId != null) {
 			User assignee = userRepository.findByUserId(assignedToUserId)
 					.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
 			if (assignee.getRole() == UserRole.CUSTOMER) {
 				throw new BadRequestException("Tickets can only be assigned to agents or admins");
 			}
+			if (!assignee.isActive()) {
+				throw new BadRequestException("Assigned user must be active");
+			}
 		}
+
+		String normalizedTitle = request.title().trim();
 
 		LocalDateTime now = LocalDateTime.now();
 		Ticket ticket = new Ticket();
 		ticket.setTicketId(generateTicketId());
-		ticket.setTitle(request.title().trim());
+		ticket.setTitle(normalizedTitle);
 		ticket.setDescription(request.description().trim());
 		ticket.setCategory(request.category());
 		ticket.setPriority(request.priority());
 		ticket.setStatus(StringUtils.hasText(assignedToUserId) ? TicketStatus.ASSIGNED : TicketStatus.NEW);
+		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getUserId(), createdBy.getRole()));
 		ticket.setCreatedByUserId(createdBy.getUserId());
 		ticket.setAssignedToUserId(assignedToUserId);
 		if (assignedToUserId != null) {
 			ticket.setAssignedAt(now);
+			addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, createdBy.getUserId(),
+					"Assigned on create");
 		}
 		applySlaPolicy(ticket, ticket.getPriority(), now);
 		ticket.setTags(normalizeTags(request.tags()));
@@ -104,19 +135,35 @@ public class TicketService {
 		}
 
 		String assignedToUserId = request.assignedToUserId() == null ? null : normalize(request.assignedToUserId());
-		if (assignedToUserId != null) {
+		if (request.assignedToUserId() != null) {
+			if (!StringUtils.hasText(assignedToUserId)) {
+				ticket.setAssignedToUserId(null);
+				ticket.setAssignedAt(null);
+			} else {
 			User assignee = userRepository.findByUserId(assignedToUserId)
 					.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
 			if (assignee.getRole() == UserRole.CUSTOMER) {
 				throw new BadRequestException("Tickets can only be assigned to agents or admins");
 			}
+			if (!assignee.isActive()) {
+				throw new BadRequestException("Assigned user must be active");
+			}
 			ticket.setAssignedToUserId(assignedToUserId);
 			ticket.setAssignedAt(now);
+			if (ticket.getStatus() == TicketStatus.NEW) {
+				addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "Assigned");
+				ticket.setStatus(TicketStatus.ASSIGNED);
+			}
+			}
 		}
 
 		if (request.status() != null) {
-			ticket.setStatus(request.status());
-			applyStatusTimestamps(ticket, request.status(), now);
+			TicketStatus targetStatus = resolveStatusTarget(request.status());
+			requireValidStatusTransition(ticket.getStatus(), targetStatus);
+			TicketStatus previousStatus = ticket.getStatus();
+			ticket.setStatus(targetStatus);
+			applyStatusTimestamps(ticket, targetStatus, now);
+			addStatusHistory(ticket, previousStatus, targetStatus, SYSTEM_ACTOR, "Status update");
 		}
 		applySlaState(ticket, now);
 		if (request.tags() != null) {
@@ -128,6 +175,75 @@ public class TicketService {
 
 		ticket.setUpdatedAt(now);
 		return toResponse(ticketRepository.save(ticket));
+	}
+
+	public List<TicketCommentResponse> findComments(String ticketId) {
+		Ticket ticket = getTicketEntity(ticketId);
+		return toCommentResponses(ticket.getComments());
+	}
+
+	public TicketCommentResponse addComment(String ticketId, TicketCommentCreateRequest request) {
+		Ticket ticket = getTicketEntity(ticketId);
+		User author = userRepository.findByUserId(request.authorUserId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.authorUserId()));
+		validateCommentAccess(author, ticket);
+
+		LocalDateTime now = LocalDateTime.now();
+		TicketComment comment = new TicketComment();
+		comment.setCommentId(generateCommentId());
+		comment.setAuthor(new TicketAuthor(author.getUserId(), buildFullName(author), author.getRole()));
+		comment.setText(request.text().trim());
+		comment.setInternal(Boolean.TRUE.equals(request.internal()));
+		comment.setAttachments(normalizeAttachmentIds(request.attachments()));
+		comment.setCreatedAt(now);
+		ticket.getComments().add(comment);
+		ticket.setUpdatedAt(now);
+
+		ticketRepository.save(ticket);
+		return toCommentResponse(comment);
+	}
+
+	public TicketCommentResponse updateComment(String ticketId, String commentId, TicketCommentUpdateRequest request) {
+		Ticket ticket = getTicketEntity(ticketId);
+		User actor = userRepository.findByUserId(request.updatedByUserId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.updatedByUserId()));
+		TicketComment comment = getComment(ticket, commentId);
+		validateCommentAccess(actor, ticket);
+		if (actor.getRole() == UserRole.CUSTOMER && comment.isInternal()) {
+			throw new BadRequestException("Customers cannot update internal comments");
+		}
+		if (actor.getRole() == UserRole.CUSTOMER && Boolean.TRUE.equals(request.internal())) {
+			throw new BadRequestException("Customers cannot set internal comments");
+		}
+
+		if (StringUtils.hasText(request.text())) {
+			comment.setText(request.text().trim());
+		}
+		if (request.internal() != null) {
+			comment.setInternal(request.internal());
+		}
+		if (request.attachments() != null) {
+			comment.setAttachments(normalizeAttachmentIds(request.attachments()));
+		}
+
+		ticket.setUpdatedAt(LocalDateTime.now());
+		ticketRepository.save(ticket);
+		return toCommentResponse(comment);
+	}
+
+	public void deleteComment(String ticketId, String commentId, TicketCommentDeleteRequest request) {
+		Ticket ticket = getTicketEntity(ticketId);
+		User actor = userRepository.findByUserId(request.deletedByUserId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.deletedByUserId()));
+		TicketComment comment = getComment(ticket, commentId);
+		validateCommentAccess(actor, ticket);
+		if (actor.getRole() == UserRole.CUSTOMER && comment.isInternal()) {
+			throw new BadRequestException("Customers cannot delete internal comments");
+		}
+
+		ticket.getComments().remove(comment);
+		ticket.setUpdatedAt(LocalDateTime.now());
+		ticketRepository.save(ticket);
 	}
 
 	public void delete(String ticketId) {
@@ -148,21 +264,32 @@ public class TicketService {
 				ticket.getCategory(),
 				ticket.getPriority(),
 				ticket.getStatus(),
-				ticket.getCreatedByUserId(),
+				toCreatedByResponse(ticket),
 				ticket.getAssignedToUserId(),
 				ticket.getAssignedAt(),
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
-				ticket.getSlaDeadline(),
+				buildSlaSummary(ticket),
 				ticket.getResponseDeadline(),
 				ticket.getEscalationDueAt(),
 				ticket.getNextReminderAt(),
 				ticket.getSlaBreachedAt(),
 				ticket.getEscalationLevel(),
+				toCommentResponses(ticket.getComments()),
+				toAttachmentResponses(ticket.getAttachments()),
+				toStatusHistoryResponses(ticket.getStatusHistory()),
+				toSlaEventResponses(ticket.getSlaEvents()),
 				ticket.getTags(),
 				ticket.getCustomFields(),
 				ticket.getCreatedAt(),
 				ticket.getUpdatedAt());
+	}
+
+	private TicketComment getComment(Ticket ticket, String commentId) {
+		return ticket.getComments().stream()
+				.filter(comment -> commentId.equals(comment.getCommentId()))
+				.findFirst()
+				.orElseThrow(() -> new ResourceNotFoundException("Comment not found: " + commentId));
 	}
 
 	private String generateTicketId() {
@@ -171,6 +298,10 @@ public class TicketService {
 			ticketId = "TKT-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
 		} while (ticketRepository.existsByTicketId(ticketId));
 		return ticketId;
+	}
+
+	private String generateCommentId() {
+		return "cmt_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
 	}
 
 	private void applySlaPolicy(Ticket ticket, TicketPriority priority, LocalDateTime createdAt) {
@@ -195,6 +326,9 @@ public class TicketService {
 	}
 
 	private void applySlaState(Ticket ticket, LocalDateTime now) {
+		if (ticket.getStatus() == TicketStatus.RESOLVED || ticket.getStatus() == TicketStatus.CLOSED) {
+			return;
+		}
 		if (ticket.getSlaDeadline() != null && ticket.getSlaBreachedAt() == null
 				&& now.isAfter(ticket.getSlaDeadline())) {
 			ticket.setSlaBreachedAt(now);
@@ -261,11 +395,196 @@ public class TicketService {
 		}
 	}
 
+
+	private TicketStatus resolveStatusTarget(TicketStatus requested) {
+		if (requested == TicketStatus.REOPENED) {
+			return TicketStatus.IN_PROGRESS;
+		}
+		return requested;
+	}
+
+	private void requireValidStatusTransition(TicketStatus current, TicketStatus target) {
+		if (current == target) {
+			return;
+		}
+		switch (current) {
+			case NEW -> {
+				if (target != TicketStatus.ASSIGNED && target != TicketStatus.CLOSED) {
+					throw new BadRequestException("Invalid status transition from NEW to " + target);
+				}
+			}
+			case ASSIGNED -> {
+				if (target != TicketStatus.IN_PROGRESS && target != TicketStatus.RESOLVED) {
+					throw new BadRequestException("Invalid status transition from ASSIGNED to " + target);
+				}
+			}
+			case IN_PROGRESS -> {
+				if (target != TicketStatus.RESOLVED && target != TicketStatus.ASSIGNED) {
+					throw new BadRequestException("Invalid status transition from IN_PROGRESS to " + target);
+				}
+			}
+			case RESOLVED -> {
+				if (target != TicketStatus.CLOSED && target != TicketStatus.IN_PROGRESS) {
+					throw new BadRequestException("Invalid status transition from RESOLVED to " + target);
+				}
+			}
+			case CLOSED -> throw new BadRequestException("Closed tickets cannot change status");
+			case REOPENED -> {
+				// REOPENED is treated as IN_PROGRESS target
+			}
+		}
+	}
+
+	private void addStatusHistory(Ticket ticket, TicketStatus from, TicketStatus to, String actor, String reason) {
+		TicketStatusHistory history = new TicketStatusHistory();
+		history.setFromStatus(from);
+		history.setToStatus(to);
+		history.setChangedBy(actor);
+		history.setChangedAt(LocalDateTime.now());
+		history.setReason(reason);
+		ticket.getStatusHistory().add(history);
+	}
+
+	private void validateCommentAccess(User actor, Ticket ticket) {
+		if (actor.getRole() == UserRole.CUSTOMER && !actor.getUserId().equals(ticket.getCreatedByUserId())) {
+			throw new BadRequestException("Customers can only comment on their own tickets");
+		}
+	}
+
+	private List<String> normalizeAttachmentIds(List<String> attachments) {
+		if (attachments == null) {
+			return new ArrayList<>();
+		}
+		return attachments.stream().filter(StringUtils::hasText).map(String::trim).collect(Collectors.toList());
+	}
+
+	private String buildFullName(User user) {
+		String first = normalize(user.getFirstName());
+		String last = normalize(user.getLastName());
+		if (first == null && last == null) {
+			return user.getUserId();
+		}
+		if (first == null) {
+			return last;
+		}
+		if (last == null) {
+			return first;
+		}
+		return first + " " + last;
+	}
 	private List<String> normalizeTags(List<String> tags) {
 		if (tags == null) {
 			return new ArrayList<>();
 		}
-		return tags.stream().filter(StringUtils::hasText).map(String::trim).collect(Collectors.toList());
+		List<String> normalized = tags.stream().filter(StringUtils::hasText).map(String::trim).collect(Collectors.toList());
+		if (normalized.size() > MAX_TAGS) {
+			throw new BadRequestException("A ticket can have at most " + MAX_TAGS + " tags");
+		}
+		return normalized;
+	}
+
+	private TicketCreatedByResponse toCreatedByResponse(Ticket ticket) {
+		if (ticket.getCreatedBy() != null) {
+			return new TicketCreatedByResponse(ticket.getCreatedBy().getUserId(), ticket.getCreatedBy().getRole());
+		}
+		if (ticket.getCreatedByUserId() != null) {
+			return new TicketCreatedByResponse(ticket.getCreatedByUserId(), null);
+		}
+		return null;
+	}
+
+	private List<TicketCommentResponse> toCommentResponses(List<TicketComment> comments) {
+		if (comments == null) {
+			return List.of();
+		}
+		return comments.stream().map(this::toCommentResponse).collect(Collectors.toList());
+	}
+
+	private TicketCommentResponse toCommentResponse(TicketComment comment) {
+		if (comment == null) {
+			return null;
+		}
+		return new TicketCommentResponse(
+				comment.getCommentId(),
+				toAuthorResponse(comment.getAuthor()),
+				comment.getText(),
+				comment.isInternal(),
+				comment.getAttachments(),
+				comment.getCreatedAt());
+	}
+
+	private TicketAuthorResponse toAuthorResponse(TicketAuthor author) {
+		if (author == null) {
+			return null;
+		}
+		return new TicketAuthorResponse(author.getUserId(), author.getFullName(), author.getRole());
+	}
+
+	private List<TicketAttachmentResponse> toAttachmentResponses(List<TicketAttachment> attachments) {
+		if (attachments == null) {
+			return List.of();
+		}
+		return attachments.stream().map(this::toAttachmentResponse).collect(Collectors.toList());
+	}
+
+	private TicketAttachmentResponse toAttachmentResponse(TicketAttachment attachment) {
+		if (attachment == null) {
+			return null;
+		}
+		return new TicketAttachmentResponse(
+				attachment.getAttachmentId(),
+				attachment.getFilename(),
+				attachment.getS3Url(),
+				attachment.getFileSize(),
+				attachment.getMimeType(),
+				attachment.getUploadedBy(),
+				attachment.getUploadedAt());
+	}
+
+	private List<TicketStatusHistoryResponse> toStatusHistoryResponses(List<TicketStatusHistory> history) {
+		if (history == null) {
+			return List.of();
+		}
+		return history.stream().map(this::toStatusHistoryResponse).collect(Collectors.toList());
+	}
+
+	private TicketStatusHistoryResponse toStatusHistoryResponse(TicketStatusHistory history) {
+		if (history == null) {
+			return null;
+		}
+		return new TicketStatusHistoryResponse(
+				history.getFromStatus(),
+				history.getToStatus(),
+				history.getChangedBy(),
+				history.getChangedAt(),
+				history.getReason());
+	}
+
+	private List<TicketSlaEventResponse> toSlaEventResponses(List<TicketSlaEvent> events) {
+		if (events == null) {
+			return List.of();
+		}
+		return events.stream().map(this::toSlaEventResponse).collect(Collectors.toList());
+	}
+
+	private TicketSlaEventResponse toSlaEventResponse(TicketSlaEvent event) {
+		if (event == null) {
+			return null;
+		}
+		return new TicketSlaEventResponse(event.getEventType(), event.getTriggeredAt(), event.getNotifiedRoles());
+	}
+
+	private TicketSlaSummary buildSlaSummary(Ticket ticket) {
+		if (ticket.getSlaDeadline() == null) {
+			return null;
+		}
+		LocalDateTime now = LocalDateTime.now();
+		long remainingMinutes = Duration.between(now, ticket.getSlaDeadline()).toMinutes();
+		if (remainingMinutes < 0) {
+			remainingMinutes = 0;
+		}
+		boolean breached = ticket.getSlaBreachedAt() != null || now.isAfter(ticket.getSlaDeadline());
+		return new TicketSlaSummary(ticket.getSlaDeadline(), remainingMinutes, breached);
 	}
 
 	private String normalize(String value) {

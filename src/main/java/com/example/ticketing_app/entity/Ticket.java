@@ -31,6 +31,7 @@ public class Ticket {
 	private TicketCategory category;
 	private TicketPriority priority;
 	private TicketStatus status = TicketStatus.NEW;
+	private TicketCreatedBy createdBy;
 	private String createdByUserId;
 	private String assignedToUserId;
 	private LocalDateTime assignedAt;
@@ -42,6 +43,10 @@ public class Ticket {
 	private LocalDateTime nextReminderAt;
 	private LocalDateTime slaBreachedAt;
 	private Integer escalationLevel = 0;
+	private List<TicketComment> comments = new ArrayList<>();
+	private List<TicketAttachment> attachments = new ArrayList<>();
+	private List<TicketStatusHistory> statusHistory = new ArrayList<>();
+	private List<TicketSlaEvent> slaEvents = new ArrayList<>();
 	private List<String> tags = new ArrayList<>();
 	private Map<String, Object> customFields = new HashMap<>();
 	private LocalDateTime createdAt;
