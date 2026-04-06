@@ -21,6 +21,7 @@ import com.example.ticketing_app.dto.TicketCommentResponse;
 import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.service.TicketService;
 
@@ -38,7 +39,7 @@ public class TicketController {
 	}
 
 	@GetMapping
-	public List<TicketResponse> findAll() {
+	public List<TicketSummaryResponse> findAll() {
 		return ticketService.findAll();
 	}
 

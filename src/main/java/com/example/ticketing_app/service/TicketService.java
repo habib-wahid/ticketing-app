@@ -24,6 +24,7 @@ import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
 import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
+import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketAttachment;
@@ -58,8 +59,8 @@ public class TicketService {
 		this.slaPolicyService = slaPolicyService;
 	}
 
-	public List<TicketResponse> findAll() {
-		return ticketRepository.findAll().stream().map(this::toResponse).collect(Collectors.toList());
+	public List<TicketSummaryResponse> findAll() {
+		return ticketRepository.findAllSummary().stream().map(this::toSummaryResponse).collect(Collectors.toList());
 	}
 
 	public TicketResponse findByTicketId(String ticketId) {
@@ -75,9 +76,11 @@ public class TicketService {
 				.orElseThrow(() -> new ResourceNotFoundException("Created-by user not found: " + request.createdByUserId()));
 
 		String assignedToUserId = normalize(request.assignedToUserId());
+
 		if (createdBy.getRole() == UserRole.CUSTOMER && assignedToUserId != null) {
 			throw new BadRequestException("Customers cannot assign tickets to agents");
 		}
+
 		if (assignedToUserId != null) {
 			User assignee = userRepository.findByUserId(assignedToUserId)
 					.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
@@ -102,11 +105,13 @@ public class TicketService {
 		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getUserId(), createdBy.getRole()));
 		ticket.setCreatedByUserId(createdBy.getUserId());
 		ticket.setAssignedToUserId(assignedToUserId);
+
 		if (assignedToUserId != null) {
 			ticket.setAssignedAt(now);
 			addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, createdBy.getUserId(),
 					"Assigned on create");
 		}
+
 		applySlaPolicy(ticket, ticket.getPriority(), now);
 		ticket.setTags(normalizeTags(request.tags()));
 		ticket.setCustomFields(request.customFields() == null ? new HashMap<>() : new HashMap<>(request.customFields()));
@@ -279,6 +284,31 @@ public class TicketService {
 				toAttachmentResponses(ticket.getAttachments()),
 				toStatusHistoryResponses(ticket.getStatusHistory()),
 				toSlaEventResponses(ticket.getSlaEvents()),
+				ticket.getTags(),
+				ticket.getCustomFields(),
+				ticket.getCreatedAt(),
+				ticket.getUpdatedAt());
+	}
+
+	private TicketSummaryResponse toSummaryResponse(Ticket ticket) {
+		return new TicketSummaryResponse(
+				ticket.getTicketId(),
+				ticket.getTitle(),
+				ticket.getDescription(),
+				ticket.getCategory(),
+				ticket.getPriority(),
+				ticket.getStatus(),
+				toCreatedByResponse(ticket),
+				ticket.getAssignedToUserId(),
+				ticket.getAssignedAt(),
+				ticket.getResolvedAt(),
+				ticket.getClosedAt(),
+				buildSlaSummary(ticket),
+				ticket.getResponseDeadline(),
+				ticket.getEscalationDueAt(),
+				ticket.getNextReminderAt(),
+				ticket.getSlaBreachedAt(),
+				ticket.getEscalationLevel(),
 				ticket.getTags(),
 				ticket.getCustomFields(),
 				ticket.getCreatedAt(),
