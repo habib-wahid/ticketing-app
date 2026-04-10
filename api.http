@@ -4,11 +4,11 @@ POST http://localhost:8080/api/tickets
 Content-Type: application/json
 
 {
-  "title": "Logout issue after reset",
-  "description": "Can't log out after resetting password. The system shows an error message.",
+  "title": "LogIn issue after reset",
+  "description": "Can't log in. The system shows an error message.",
   "category": "ACCOUNT",
-  "priority": "MEDIUM",
-  "createdByUserId": "usr_9d2afd7e",
+  "priority": "HIGH",
+  "createdByUserId": "usr_9f62e110",
   "tags": ["login", "account"],
   "customFields": {
     "browser": "Chrome",
@@ -21,11 +21,11 @@ POST http://localhost:8080/api/users
 Content-Type: application/json
 
 {
-  "email": "customer@example.com",
+  "email": "hb@example.com",
   "password": "ChangeMe123!",
-  "firstName": "Sam",
-  "lastName": "Taylor",
-  "role": "CUSTOMER",
+  "firstName": "habib",
+  "lastName": "wahid",
+  "role": "AGENT",
   "isActive": true,
   "emailVerified": false,
   "department": "GENERAL",

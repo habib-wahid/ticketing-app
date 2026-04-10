@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.example.ticketing_app.dto.TicketCreateRequest;
+import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
 import com.example.ticketing_app.dto.TicketAuthorResponse;
 import com.example.ticketing_app.dto.TicketCommentCreateRequest;
@@ -164,7 +165,7 @@ public class TicketService {
 
 		if (request.status() != null) {
 			TicketStatus targetStatus = resolveStatusTarget(request.status());
-			requireValidStatusTransition(ticket.getStatus(), targetStatus);
+			//requireValidStatusTransition(ticket.getStatus(), targetStatus);
 			TicketStatus previousStatus = ticket.getStatus();
 			ticket.setStatus(targetStatus);
 			applyStatusTimestamps(ticket, targetStatus, now);
@@ -254,6 +255,37 @@ public class TicketService {
 	public void delete(String ticketId) {
 		Ticket ticket = getTicketEntity(ticketId);
 		ticketRepository.delete(ticket);
+	}
+
+	public TicketResponse assign(String ticketId, TicketAssignRequest request) {
+		Ticket ticket = getTicketEntity(ticketId);
+		User actor = userRepository.findByUserId(request.assignedByUserId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.assignedByUserId()));
+		if (actor.getRole() == UserRole.CUSTOMER) {
+			throw new BadRequestException("Customers cannot assign tickets");
+		}
+
+		String assignedToUserId = normalize(request.assignedToUserId());
+		User assignee = userRepository.findByUserId(assignedToUserId)
+				.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
+		if (assignee.getRole() == UserRole.CUSTOMER) {
+			throw new BadRequestException("Tickets can only be assigned to agents or admins");
+		}
+		if (!assignee.isActive()) {
+			throw new BadRequestException("Assigned user must be active");
+		}
+
+		TicketStatus requestedStatus = TicketStatus.ASSIGNED;
+        TicketStatus previousStatus = ticket.getStatus();
+		ticket.setStatus(requestedStatus);
+
+		LocalDateTime now = LocalDateTime.now();
+		ticket.setAssignedToUserId(assignedToUserId);
+		ticket.setAssignedAt(now);
+		ticket.setUpdatedAt(now);
+		addStatusHistory(ticket, previousStatus, requestedStatus, actor.getUserId(),
+				StringUtils.hasText(request.reason()) ? request.reason().trim() : "Assigned");
+		return toResponse(ticketRepository.save(ticket));
 	}
 
 	private Ticket getTicketEntity(String ticketId) {
@@ -428,7 +460,7 @@ public class TicketService {
 
 	private TicketStatus resolveStatusTarget(TicketStatus requested) {
 		if (requested == TicketStatus.REOPENED) {
-			return TicketStatus.IN_PROGRESS;
+			return TicketStatus.ASSIGNED;
 		}
 		return requested;
 	}

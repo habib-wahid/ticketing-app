@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketCommentCreateRequest;
 import com.example.ticketing_app.dto.TicketCommentDeleteRequest;
 import com.example.ticketing_app.dto.TicketCommentResponse;
@@ -62,6 +63,11 @@ public class TicketController {
 	public ResponseEntity<TicketCommentResponse> addComment(@PathVariable String ticketId,
 			@Valid @RequestBody TicketCommentCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.addComment(ticketId, request));
+	}
+
+	@PostMapping("/{ticketId}/assign")
+	public TicketResponse assign(@PathVariable String ticketId, @Valid @RequestBody TicketAssignRequest request) {
+		return ticketService.assign(ticketId, request);
 	}
 
 	@PutMapping("/{ticketId}")
