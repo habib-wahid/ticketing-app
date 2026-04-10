@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketCommentCreateRequest;
 import com.example.ticketing_app.dto.TicketCommentDeleteRequest;
@@ -40,57 +41,61 @@ public class TicketController {
 	}
 
 	@GetMapping
-	public List<TicketSummaryResponse> findAll() {
-		return ticketService.findAll();
+	public ResponseEntity<ApiResponse<List<TicketSummaryResponse>>> findAll() {
+		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll()));
 	}
 
 	@GetMapping("/{ticketId}")
-	public TicketResponse findByTicketId(@PathVariable String ticketId) {
-		return ticketService.findByTicketId(ticketId);
+	public ResponseEntity<ApiResponse<TicketResponse>> findByTicketId(@PathVariable String ticketId) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket fetched", ticketService.findByTicketId(ticketId)));
 	}
 
 	@GetMapping("/{ticketId}/comments")
-	public List<TicketCommentResponse> findComments(@PathVariable String ticketId) {
-		return ticketService.findComments(ticketId);
+	public ResponseEntity<ApiResponse<List<TicketCommentResponse>>> findComments(@PathVariable String ticketId) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket comments fetched", ticketService.findComments(ticketId)));
 	}
 
 	@PostMapping
-	public ResponseEntity<TicketResponse> create(@Valid @RequestBody TicketCreateRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.create(request));
+	public ResponseEntity<ApiResponse<TicketResponse>> create(@Valid @RequestBody TicketCreateRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success("Ticket created", ticketService.create(request)));
 	}
 
 	@PostMapping("/{ticketId}/comments")
-	public ResponseEntity<TicketCommentResponse> addComment(@PathVariable String ticketId,
+	public ResponseEntity<ApiResponse<TicketCommentResponse>> addComment(@PathVariable String ticketId,
 			@Valid @RequestBody TicketCommentCreateRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(ticketService.addComment(ticketId, request));
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success("Ticket comment created", ticketService.addComment(ticketId, request)));
 	}
 
 	@PostMapping("/{ticketId}/assign")
-	public TicketResponse assign(@PathVariable String ticketId, @Valid @RequestBody TicketAssignRequest request) {
-		return ticketService.assign(ticketId, request);
+	public ResponseEntity<ApiResponse<TicketResponse>> assign(@PathVariable String ticketId,
+			@Valid @RequestBody TicketAssignRequest request) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket assigned", ticketService.assign(ticketId, request)));
 	}
 
 	@PutMapping("/{ticketId}")
-	public TicketResponse update(@PathVariable String ticketId, @Valid @RequestBody TicketUpdateRequest request) {
-		return ticketService.update(ticketId, request);
+	public ResponseEntity<ApiResponse<TicketResponse>> update(@PathVariable String ticketId,
+			@Valid @RequestBody TicketUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket updated", ticketService.update(ticketId, request)));
 	}
 
 	@PutMapping("/{ticketId}/comments/{commentId}")
-	public TicketCommentResponse updateComment(@PathVariable String ticketId, @PathVariable String commentId,
-			@Valid @RequestBody TicketCommentUpdateRequest request) {
-		return ticketService.updateComment(ticketId, commentId, request);
+	public ResponseEntity<ApiResponse<TicketCommentResponse>> updateComment(@PathVariable String ticketId,
+			@PathVariable String commentId, @Valid @RequestBody TicketCommentUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket comment updated", ticketService.updateComment(ticketId, commentId, request)));
 	}
 
 	@DeleteMapping("/{ticketId}")
-	public ResponseEntity<Void> delete(@PathVariable String ticketId) {
+	public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String ticketId) {
 		ticketService.delete(ticketId);
-		return ResponseEntity.noContent().build();
+		return ResponseEntity.ok(ApiResponse.success("Ticket deleted", null));
 	}
 
 	@DeleteMapping("/{ticketId}/comments/{commentId}")
-	public ResponseEntity<Void> deleteComment(@PathVariable String ticketId, @PathVariable String commentId,
+	public ResponseEntity<ApiResponse<Void>> deleteComment(@PathVariable String ticketId, @PathVariable String commentId,
 			@Valid @RequestBody TicketCommentDeleteRequest request) {
 		ticketService.deleteComment(ticketId, commentId, request);
-		return ResponseEntity.noContent().build();
+		return ResponseEntity.ok(ApiResponse.success("Ticket comment deleted", null));
 	}
 }

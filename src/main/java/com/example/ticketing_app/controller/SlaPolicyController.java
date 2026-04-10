@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.SlaPolicyCreateRequest;
 import com.example.ticketing_app.dto.SlaPolicyResponse;
 import com.example.ticketing_app.dto.SlaPolicyUpdateRequest;
@@ -34,28 +35,30 @@ public class SlaPolicyController {
 	}
 
 	@GetMapping
-	public List<SlaPolicyResponse> findAll() {
-		return slaPolicyService.findAll();
+	public ResponseEntity<ApiResponse<List<SlaPolicyResponse>>> findAll() {
+		return ResponseEntity.ok(ApiResponse.success("SLA policies fetched", slaPolicyService.findAll()));
 	}
 
 	@GetMapping("/{id}")
-	public SlaPolicyResponse findById(@PathVariable String id) {
-		return slaPolicyService.findById(id);
+	public ResponseEntity<ApiResponse<SlaPolicyResponse>> findById(@PathVariable String id) {
+		return ResponseEntity.ok(ApiResponse.success("SLA policy fetched", slaPolicyService.findById(id)));
 	}
 
 	@PostMapping
-	public ResponseEntity<SlaPolicyResponse> create(@Valid @RequestBody SlaPolicyCreateRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(slaPolicyService.create(request));
+	public ResponseEntity<ApiResponse<SlaPolicyResponse>> create(@Valid @RequestBody SlaPolicyCreateRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success("SLA policy created", slaPolicyService.create(request)));
 	}
 
 	@PutMapping("/{id}")
-	public SlaPolicyResponse update(@PathVariable String id, @Valid @RequestBody SlaPolicyUpdateRequest request) {
-		return slaPolicyService.update(id, request);
+	public ResponseEntity<ApiResponse<SlaPolicyResponse>> update(@PathVariable String id,
+			@Valid @RequestBody SlaPolicyUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.success("SLA policy updated", slaPolicyService.update(id, request)));
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
+	public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
 		slaPolicyService.delete(id);
-		return ResponseEntity.noContent().build();
+		return ResponseEntity.ok(ApiResponse.success("SLA policy deleted", null));
 	}
 }
