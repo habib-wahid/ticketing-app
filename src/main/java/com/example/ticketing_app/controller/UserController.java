@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.UserCreateRequest;
 import com.example.ticketing_app.dto.UserResponse;
 import com.example.ticketing_app.dto.UserUpdateRequest;
@@ -34,28 +35,30 @@ public class UserController {
 	}
 
 	@GetMapping
-	public List<UserResponse> findAll() {
-		return userService.findAll();
+	public ResponseEntity<ApiResponse<List<UserResponse>>> findAll() {
+		return ResponseEntity.ok(ApiResponse.success("Users fetched", userService.findAll()));
 	}
 
 	@GetMapping("/{userId}")
-	public UserResponse findByUserId(@PathVariable String userId) {
-		return userService.findByUserId(userId);
+	public ResponseEntity<ApiResponse<UserResponse>> findByUserId(@PathVariable String userId) {
+		return ResponseEntity.ok(ApiResponse.success("User fetched", userService.findByUserId(userId)));
 	}
 
 	@PostMapping
-	public ResponseEntity<UserResponse> create(@Valid @RequestBody UserCreateRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(request));
+	public ResponseEntity<ApiResponse<UserResponse>> create(@Valid @RequestBody UserCreateRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success("User created", userService.create(request)));
 	}
 
 	@PutMapping("/{userId}")
-	public UserResponse update(@PathVariable String userId, @Valid @RequestBody UserUpdateRequest request) {
-		return userService.update(userId, request);
+	public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable String userId,
+			@Valid @RequestBody UserUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.success("User updated", userService.update(userId, request)));
 	}
 
 	@DeleteMapping("/{userId}")
-	public ResponseEntity<Void> delete(@PathVariable String userId) {
+	public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String userId) {
 		userService.delete(userId);
-		return ResponseEntity.noContent().build();
+		return ResponseEntity.ok(ApiResponse.success("User deleted", null));
 	}
 }
