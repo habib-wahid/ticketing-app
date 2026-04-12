@@ -16,7 +16,7 @@ public record TicketSummaryResponse(
 		TicketPriority priority,
 		TicketStatus status,
 		TicketCreatedByResponse createdBy,
-		String assignedToUserId,
+		String assignedToUser,
 		LocalDateTime assignedAt,
 		LocalDateTime resolvedAt,
 		LocalDateTime closedAt,
@@ -31,4 +31,3 @@ public record TicketSummaryResponse(
 		LocalDateTime createdAt,
 		LocalDateTime updatedAt) {
 }
-

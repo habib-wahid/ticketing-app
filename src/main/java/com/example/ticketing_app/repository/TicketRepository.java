@@ -16,6 +16,9 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 	@Query(value = "{}", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
 	List<Ticket> findAllSummary();
 
+    List<Ticket> findAllByCreatedByUserId(String createdByUserId);
+
+    @Query(value = "{}", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
 	List<Ticket> findByCreatedByUserId(String createdByUserId);
 
 	boolean existsByCreatedByUserIdAndTitleIgnoreCaseAndCreatedAtAfter(String createdByUserId, String title,

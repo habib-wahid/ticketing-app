@@ -11,6 +11,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class TicketCreatedBy {
 
+    private String name;
 	private String userId;
 	private UserRole role;
 }

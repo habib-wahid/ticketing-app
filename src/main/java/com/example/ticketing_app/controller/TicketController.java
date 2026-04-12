@@ -45,6 +45,11 @@ public class TicketController {
 		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll()));
 	}
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<ApiResponse<List<TicketSummaryResponse>>> findAllByUserId(@PathVariable String userId) {
+        return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findByCreatedByUserId(userId)));
+    }
+
 	@GetMapping("/{ticketId}")
 	public ResponseEntity<ApiResponse<TicketResponse>> findByTicketId(@PathVariable String ticketId) {
 		return ResponseEntity.ok(ApiResponse.success("Ticket fetched", ticketService.findByTicketId(ticketId)));

@@ -3,8 +3,10 @@ package com.example.ticketing_app.service;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -61,7 +63,28 @@ public class TicketService {
 	}
 
 	public List<TicketSummaryResponse> findAll() {
-		return ticketRepository.findAllSummary().stream().map(this::toSummaryResponse).collect(Collectors.toList());
+		List<Ticket> tickets = ticketRepository.findAllSummary();
+		Map<String, String> userNames = loadAssignedUserNames(tickets);
+		return tickets.stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
+	}
+
+    public List<TicketSummaryResponse> findByCreatedByUserId(String userId) {
+        List<Ticket> tickets = ticketRepository.findByCreatedByUserId(userId);
+		Map<String, String> userNames = loadAssignedUserNames(tickets);
+        return tickets.stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
+    }
+
+	private Map<String, String> loadAssignedUserNames(List<Ticket> tickets) {
+		List<String> assignedIds = tickets.stream()
+				.map(Ticket::getAssignedToUserId)
+				.filter(StringUtils::hasText)
+				.distinct()
+				.toList();
+		if (assignedIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return userRepository.findByUserIdIn(assignedIds).stream()
+				.collect(Collectors.toMap(User::getUserId, this::buildFullName, (a, b) -> a));
 	}
 
 	public TicketResponse findByTicketId(String ticketId) {
@@ -103,7 +126,7 @@ public class TicketService {
 		ticket.setCategory(request.category());
 		ticket.setPriority(request.priority());
 		ticket.setStatus(StringUtils.hasText(assignedToUserId) ? TicketStatus.ASSIGNED : TicketStatus.NEW);
-		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getUserId(), createdBy.getRole()));
+		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getFirstName(), createdBy.getUserId(), createdBy.getRole()));
 		ticket.setCreatedByUserId(createdBy.getUserId());
 		ticket.setAssignedToUserId(assignedToUserId);
 
@@ -322,7 +345,14 @@ public class TicketService {
 				ticket.getUpdatedAt());
 	}
 
-	private TicketSummaryResponse toSummaryResponse(Ticket ticket) {
+	private TicketSummaryResponse toSummaryResponse(Ticket ticket, Map<String, String> userNamesMap) {
+		String assignedUser = ticket.getAssignedToUserId();
+		if (StringUtils.hasText(assignedUser)) {
+			assignedUser = userNamesMap != null && userNamesMap.containsKey(assignedUser) 
+					? userNamesMap.get(assignedUser) 
+					: resolveAssignedUserName(assignedUser);
+		}
+		
 		return new TicketSummaryResponse(
 				ticket.getTicketId(),
 				ticket.getTitle(),
@@ -331,7 +361,7 @@ public class TicketService {
 				ticket.getPriority(),
 				ticket.getStatus(),
 				toCreatedByResponse(ticket),
-				ticket.getAssignedToUserId(),
+				assignedUser,
 				ticket.getAssignedAt(),
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
@@ -345,6 +375,19 @@ public class TicketService {
 				ticket.getCustomFields(),
 				ticket.getCreatedAt(),
 				ticket.getUpdatedAt());
+	}
+
+	private TicketSummaryResponse toSummaryResponse(Ticket ticket) {
+		return toSummaryResponse(ticket, Collections.emptyMap());
+	}
+
+	private String resolveAssignedUserName(String assignedToUserId) {
+		if (!StringUtils.hasText(assignedToUserId)) {
+			return null;
+		}
+		return userRepository.findByUserId(assignedToUserId)
+				.map(this::buildFullName)
+				.orElse(assignedToUserId);
 	}
 
 	private TicketComment getComment(Ticket ticket, String commentId) {
