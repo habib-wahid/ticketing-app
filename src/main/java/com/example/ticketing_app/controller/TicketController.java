@@ -4,6 +4,9 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.ticketing_app.dto.ApiResponse;
@@ -25,6 +29,7 @@ import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
+import com.example.ticketing_app.entity.TicketFilterStatus;
 import com.example.ticketing_app.service.TicketService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,6 +49,16 @@ public class TicketController {
 	public ResponseEntity<ApiResponse<List<TicketSummaryResponse>>> findAll() {
 		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll()));
 	}
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findAllByUserId(
+            @PathVariable String userId,
+            @RequestParam(required = false) TicketFilterStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findByCreatedByUserId(userId, status, pageRequest)));
+    }
 
 	@GetMapping("/{ticketId}")
 	public ResponseEntity<ApiResponse<TicketResponse>> findByTicketId(@PathVariable String ticketId) {

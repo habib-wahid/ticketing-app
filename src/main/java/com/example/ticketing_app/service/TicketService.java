@@ -3,13 +3,19 @@ package com.example.ticketing_app.service;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketAssignRequest;
@@ -32,6 +38,7 @@ import com.example.ticketing_app.entity.TicketAttachment;
 import com.example.ticketing_app.entity.TicketAuthor;
 import com.example.ticketing_app.entity.TicketComment;
 import com.example.ticketing_app.entity.TicketCreatedBy;
+import com.example.ticketing_app.entity.TicketFilterStatus;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketSlaEvent;
 import com.example.ticketing_app.entity.TicketStatus;
@@ -61,7 +68,42 @@ public class TicketService {
 	}
 
 	public List<TicketSummaryResponse> findAll() {
-		return ticketRepository.findAllSummary().stream().map(this::toSummaryResponse).collect(Collectors.toList());
+		List<Ticket> tickets = ticketRepository.findAllSummary();
+		Map<String, String> userNames = loadAssignedUserNames(tickets);
+		return tickets.stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
+	}
+
+    public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketFilterStatus status, Pageable pageable) {
+        List<TicketStatus> statuses = null;
+        if (status == TicketFilterStatus.PENDING) {
+            statuses = List.of(TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.REOPENED);
+        } else if (status == TicketFilterStatus.RESOLVED) {
+            statuses = List.of(TicketStatus.RESOLVED, TicketStatus.CLOSED);
+        }
+        
+        Page<Ticket> page;
+        if (statuses == null) {
+            page = ticketRepository.findByCreatedByUserId(userId, pageable);
+        } else {
+            page = ticketRepository.findByCreatedByUserIdAndStatusIn(userId, statuses, pageable);
+        }
+        
+        Map<String, String> userNames = loadAssignedUserNames(page.getContent());
+        List<TicketSummaryResponse> responses = page.getContent().stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
+        return new PageImpl<>(responses, pageable, page.getTotalElements());
+    }
+
+	private Map<String, String> loadAssignedUserNames(List<Ticket> tickets) {
+		List<String> assignedIds = tickets.stream()
+				.map(Ticket::getAssignedToUserId)
+				.filter(StringUtils::hasText)
+				.distinct()
+				.toList();
+		if (assignedIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return userRepository.findByUserIdIn(assignedIds).stream()
+				.collect(Collectors.toMap(User::getUserId, this::buildFullName, (a, b) -> a));
 	}
 
 	public TicketResponse findByTicketId(String ticketId) {
@@ -103,7 +145,7 @@ public class TicketService {
 		ticket.setCategory(request.category());
 		ticket.setPriority(request.priority());
 		ticket.setStatus(StringUtils.hasText(assignedToUserId) ? TicketStatus.ASSIGNED : TicketStatus.NEW);
-		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getUserId(), createdBy.getRole()));
+		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getFirstName(), createdBy.getUserId(), createdBy.getRole()));
 		ticket.setCreatedByUserId(createdBy.getUserId());
 		ticket.setAssignedToUserId(assignedToUserId);
 
@@ -322,7 +364,14 @@ public class TicketService {
 				ticket.getUpdatedAt());
 	}
 
-	private TicketSummaryResponse toSummaryResponse(Ticket ticket) {
+	private TicketSummaryResponse toSummaryResponse(Ticket ticket, Map<String, String> userNamesMap) {
+		String assignedUser = ticket.getAssignedToUserId();
+		if (StringUtils.hasText(assignedUser)) {
+			assignedUser = userNamesMap != null && userNamesMap.containsKey(assignedUser) 
+					? userNamesMap.get(assignedUser) 
+					: resolveAssignedUserName(assignedUser);
+		}
+		
 		return new TicketSummaryResponse(
 				ticket.getTicketId(),
 				ticket.getTitle(),
@@ -331,7 +380,7 @@ public class TicketService {
 				ticket.getPriority(),
 				ticket.getStatus(),
 				toCreatedByResponse(ticket),
-				ticket.getAssignedToUserId(),
+				assignedUser,
 				ticket.getAssignedAt(),
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
@@ -345,6 +394,19 @@ public class TicketService {
 				ticket.getCustomFields(),
 				ticket.getCreatedAt(),
 				ticket.getUpdatedAt());
+	}
+
+	private TicketSummaryResponse toSummaryResponse(Ticket ticket) {
+		return toSummaryResponse(ticket, Collections.emptyMap());
+	}
+
+	private String resolveAssignedUserName(String assignedToUserId) {
+		if (!StringUtils.hasText(assignedToUserId)) {
+			return null;
+		}
+		return userRepository.findByUserId(assignedToUserId)
+				.map(this::buildFullName)
+				.orElse(assignedToUserId);
 	}
 
 	private TicketComment getComment(Ticket ticket, String commentId) {
