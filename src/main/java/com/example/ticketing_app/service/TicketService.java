@@ -13,6 +13,10 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
@@ -34,6 +38,7 @@ import com.example.ticketing_app.entity.TicketAttachment;
 import com.example.ticketing_app.entity.TicketAuthor;
 import com.example.ticketing_app.entity.TicketComment;
 import com.example.ticketing_app.entity.TicketCreatedBy;
+import com.example.ticketing_app.entity.TicketFilterStatus;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketSlaEvent;
 import com.example.ticketing_app.entity.TicketStatus;
@@ -68,10 +73,24 @@ public class TicketService {
 		return tickets.stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
 	}
 
-    public List<TicketSummaryResponse> findByCreatedByUserId(String userId) {
-        List<Ticket> tickets = ticketRepository.findByCreatedByUserId(userId);
-		Map<String, String> userNames = loadAssignedUserNames(tickets);
-        return tickets.stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
+    public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketFilterStatus status, Pageable pageable) {
+        List<TicketStatus> statuses = null;
+        if (status == TicketFilterStatus.PENDING) {
+            statuses = List.of(TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.REOPENED);
+        } else if (status == TicketFilterStatus.RESOLVED) {
+            statuses = List.of(TicketStatus.RESOLVED, TicketStatus.CLOSED);
+        }
+        
+        Page<Ticket> page;
+        if (statuses == null) {
+            page = ticketRepository.findByCreatedByUserId(userId, pageable);
+        } else {
+            page = ticketRepository.findByCreatedByUserIdAndStatusIn(userId, statuses, pageable);
+        }
+        
+        Map<String, String> userNames = loadAssignedUserNames(page.getContent());
+        List<TicketSummaryResponse> responses = page.getContent().stream().map(t -> toSummaryResponse(t, userNames)).collect(Collectors.toList());
+        return new PageImpl<>(responses, pageable, page.getTotalElements());
     }
 
 	private Map<String, String> loadAssignedUserNames(List<Ticket> tickets) {
