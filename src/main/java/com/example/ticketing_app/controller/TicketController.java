@@ -29,6 +29,7 @@ import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
+import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.entity.TicketFilterStatus;
 import com.example.ticketing_app.service.TicketService;
 
@@ -93,6 +94,12 @@ public class TicketController {
 	public ResponseEntity<ApiResponse<TicketResponse>> update(@PathVariable String ticketId,
 			@Valid @RequestBody TicketUpdateRequest request) {
 		return ResponseEntity.ok(ApiResponse.success("Ticket updated", ticketService.update(ticketId, request)));
+	}
+
+	@PutMapping("/{ticketId}/status")
+	public ResponseEntity<ApiResponse<TicketResponse>> changeStatus(@PathVariable String ticketId,
+			@Valid @RequestBody TicketStatusChangeRequest request) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket status updated", ticketService.changeStatus(ticketId, request)));
 	}
 
 	@PutMapping("/{ticketId}/comments/{commentId}")
