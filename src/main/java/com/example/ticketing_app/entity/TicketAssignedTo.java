@@ -9,9 +9,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TicketCreatedBy {
+public class TicketAssignedTo {
     private String name;
-	private String userId;
-	private UserRole role;
+    private String userId;
+    private UserRole role;
 }
-

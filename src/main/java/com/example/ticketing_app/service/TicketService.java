@@ -29,11 +29,13 @@ import com.example.ticketing_app.dto.TicketCreatedByResponse;
 import com.example.ticketing_app.dto.TicketResponse;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
+import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.Ticket;
+import com.example.ticketing_app.entity.TicketAssignedTo;
 import com.example.ticketing_app.entity.TicketAttachment;
 import com.example.ticketing_app.entity.TicketAuthor;
 import com.example.ticketing_app.entity.TicketComment;
@@ -95,8 +97,9 @@ public class TicketService {
 
 	private Map<String, String> loadAssignedUserNames(List<Ticket> tickets) {
 		List<String> assignedIds = tickets.stream()
-				.map(Ticket::getAssignedToUserId)
-				.filter(StringUtils::hasText)
+				.map(Ticket::getAssignedTo)
+				.filter(assigned -> assigned != null && StringUtils.hasText(assigned.getUserId()))
+				.map(TicketAssignedTo::getUserId)
 				.distinct()
 				.toList();
 		if (assignedIds.isEmpty()) {
@@ -124,8 +127,9 @@ public class TicketService {
 			throw new BadRequestException("Customers cannot assign tickets to agents");
 		}
 
+		User assignee = null;
 		if (assignedToUserId != null) {
-			User assignee = userRepository.findByUserId(assignedToUserId)
+			assignee = userRepository.findByUserId(assignedToUserId)
 					.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
 			if (assignee.getRole() == UserRole.CUSTOMER) {
 				throw new BadRequestException("Tickets can only be assigned to agents or admins");
@@ -145,9 +149,10 @@ public class TicketService {
 		ticket.setCategory(request.category());
 		ticket.setPriority(request.priority());
 		ticket.setStatus(StringUtils.hasText(assignedToUserId) ? TicketStatus.ASSIGNED : TicketStatus.NEW);
-		ticket.setCreatedBy(new TicketCreatedBy(createdBy.getFirstName(), createdBy.getUserId(), createdBy.getRole()));
-		ticket.setCreatedByUserId(createdBy.getUserId());
-		ticket.setAssignedToUserId(assignedToUserId);
+		ticket.setCreatedBy(new TicketCreatedBy(buildFullName(createdBy), createdBy.getUserId(), createdBy.getRole()));
+		if (assignee != null) {
+			ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
+		}
 
 		if (assignedToUserId != null) {
 			ticket.setAssignedAt(now);
@@ -185,23 +190,23 @@ public class TicketService {
 		String assignedToUserId = request.assignedToUserId() == null ? null : normalize(request.assignedToUserId());
 		if (request.assignedToUserId() != null) {
 			if (!StringUtils.hasText(assignedToUserId)) {
-				ticket.setAssignedToUserId(null);
+				ticket.setAssignedTo(null);
 				ticket.setAssignedAt(null);
 			} else {
-			User assignee = userRepository.findByUserId(assignedToUserId)
-					.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
-			if (assignee.getRole() == UserRole.CUSTOMER) {
-				throw new BadRequestException("Tickets can only be assigned to agents or admins");
-			}
-			if (!assignee.isActive()) {
-				throw new BadRequestException("Assigned user must be active");
-			}
-			ticket.setAssignedToUserId(assignedToUserId);
-			ticket.setAssignedAt(now);
-			if (ticket.getStatus() == TicketStatus.NEW) {
-				addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "Assigned");
-				ticket.setStatus(TicketStatus.ASSIGNED);
-			}
+				User assignee = userRepository.findByUserId(assignedToUserId)
+						.orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
+				if (assignee.getRole() == UserRole.CUSTOMER) {
+					throw new BadRequestException("Tickets can only be assigned to agents or admins");
+				}
+				if (!assignee.isActive()) {
+					throw new BadRequestException("Assigned user must be active");
+				}
+				ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
+				ticket.setAssignedAt(now);
+				if (ticket.getStatus() == TicketStatus.NEW) {
+					addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "Assigned");
+					ticket.setStatus(TicketStatus.ASSIGNED);
+				}
 			}
 		}
 
@@ -322,11 +327,32 @@ public class TicketService {
 		ticket.setStatus(requestedStatus);
 
 		LocalDateTime now = LocalDateTime.now();
-		ticket.setAssignedToUserId(assignedToUserId);
+		ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
 		ticket.setAssignedAt(now);
 		ticket.setUpdatedAt(now);
 		addStatusHistory(ticket, previousStatus, requestedStatus, actor.getUserId(),
 				StringUtils.hasText(request.reason()) ? request.reason().trim() : "Assigned");
+		return toResponse(ticketRepository.save(ticket));
+	}
+
+	public TicketResponse changeStatus(String ticketId, TicketStatusChangeRequest request) {
+		Ticket ticket = getTicketEntity(ticketId);
+		User actor = userRepository.findByUserId(request.changedByUserId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.changedByUserId()));
+		if (actor.getRole() == UserRole.CUSTOMER) {
+			throw new BadRequestException("Customers cannot change tickets status");
+		}
+
+		TicketStatus targetStatus = resolveStatusTarget(request.status());
+		TicketStatus previousStatus = ticket.getStatus();
+		requireValidStatusTransition(previousStatus, targetStatus);
+
+		LocalDateTime now = LocalDateTime.now();
+		ticket.setStatus(targetStatus);
+		applyStatusTimestamps(ticket, targetStatus, now);
+		addStatusHistory(ticket, previousStatus, targetStatus, actor.getUserId(),
+				StringUtils.hasText(request.reason()) ? request.reason().trim() : "Status changed");
+		ticket.setUpdatedAt(now);
 		return toResponse(ticketRepository.save(ticket));
 	}
 
@@ -344,7 +370,7 @@ public class TicketService {
 				ticket.getPriority(),
 				ticket.getStatus(),
 				toCreatedByResponse(ticket),
-				ticket.getAssignedToUserId(),
+				resolveAssignedName(ticket.getAssignedTo()),
 				ticket.getAssignedAt(),
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
@@ -365,13 +391,17 @@ public class TicketService {
 	}
 
 	private TicketSummaryResponse toSummaryResponse(Ticket ticket, Map<String, String> userNamesMap) {
-		String assignedUser = ticket.getAssignedToUserId();
-		if (StringUtils.hasText(assignedUser)) {
-			assignedUser = userNamesMap != null && userNamesMap.containsKey(assignedUser) 
-					? userNamesMap.get(assignedUser) 
-					: resolveAssignedUserName(assignedUser);
+		TicketAssignedTo assigned = ticket.getAssignedTo();
+		String assignedUser = null;
+		if (assigned != null && StringUtils.hasText(assigned.getUserId())) {
+			assignedUser = userNamesMap != null && userNamesMap.containsKey(assigned.getUserId())
+					? userNamesMap.get(assigned.getUserId())
+					: resolveAssignedUserName(assigned.getUserId());
+			if (!StringUtils.hasText(assignedUser)) {
+				assignedUser = assigned.getName();
+			}
 		}
-		
+
 		return new TicketSummaryResponse(
 				ticket.getTicketId(),
 				ticket.getTitle(),
@@ -398,6 +428,16 @@ public class TicketService {
 
 	private TicketSummaryResponse toSummaryResponse(Ticket ticket) {
 		return toSummaryResponse(ticket, Collections.emptyMap());
+	}
+
+	private String resolveAssignedName(TicketAssignedTo assignedTo) {
+		if (assignedTo == null) {
+			return null;
+		}
+		if (StringUtils.hasText(assignedTo.getName())) {
+			return assignedTo.getName();
+		}
+		return resolveAssignedUserName(assignedTo.getUserId());
 	}
 
 	private String resolveAssignedUserName(String assignedToUserId) {
@@ -570,7 +610,9 @@ public class TicketService {
 	}
 
 	private void validateCommentAccess(User actor, Ticket ticket) {
-		if (actor.getRole() == UserRole.CUSTOMER && !actor.getUserId().equals(ticket.getCreatedByUserId())) {
+		TicketCreatedBy createdBy = ticket.getCreatedBy();
+		if (actor.getRole() == UserRole.CUSTOMER && (createdBy == null
+				|| !actor.getUserId().equals(createdBy.getUserId()))) {
 			throw new BadRequestException("Customers can only comment on their own tickets");
 		}
 	}
@@ -608,13 +650,14 @@ public class TicketService {
 	}
 
 	private TicketCreatedByResponse toCreatedByResponse(Ticket ticket) {
-		if (ticket.getCreatedBy() != null) {
-			return new TicketCreatedByResponse(ticket.getCreatedBy().getUserId(), ticket.getCreatedBy().getRole());
+		TicketCreatedBy createdBy = ticket.getCreatedBy();
+		if (createdBy == null) {
+			return null;
 		}
-		if (ticket.getCreatedByUserId() != null) {
-			return new TicketCreatedByResponse(ticket.getCreatedByUserId(), null);
-		}
-		return null;
+		String createdByName = StringUtils.hasText(createdBy.getName())
+				? createdBy.getName()
+				: resolveAssignedUserName(createdBy.getUserId());
+		return new TicketCreatedByResponse(createdBy.getUserId(), createdByName, createdBy.getRole());
 	}
 
 	private List<TicketCommentResponse> toCommentResponses(List<TicketComment> comments) {

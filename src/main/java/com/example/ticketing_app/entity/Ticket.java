@@ -32,8 +32,7 @@ public class Ticket {
 	private TicketPriority priority;
 	private TicketStatus status = TicketStatus.NEW;
 	private TicketCreatedBy createdBy;
-	private String createdByUserId;
-	private String assignedToUserId;
+	private TicketAssignedTo assignedTo;
 	private LocalDateTime assignedAt;
 	private LocalDateTime resolvedAt;
 	private LocalDateTime closedAt;
