@@ -197,8 +197,7 @@ public class TicketService {
         }
 
         if (request.status() != null) {
-            TicketStatus targetStatus = resolveStatusTarget(request.status());
-            //requireValidStatusTransition(ticket.getStatus(), targetStatus);
+            TicketStatus targetStatus = request.status();
             TicketStatus previousStatus = ticket.getStatus();
             ticket.setStatus(targetStatus);
             applyStatusTimestamps(ticket, targetStatus, now);
@@ -329,9 +328,8 @@ public class TicketService {
             throw new BadRequestException("Customers cannot change tickets status");
         }
 
-        TicketStatus targetStatus = resolveStatusTarget(request.status());
+        TicketStatus targetStatus = request.status();
         TicketStatus previousStatus = ticket.getStatus();
-        requireValidStatusTransition(previousStatus, targetStatus);
 
         LocalDateTime now = LocalDateTime.now();
         ticket.setStatus(targetStatus);
@@ -544,46 +542,6 @@ public class TicketService {
         }
     }
 
-
-    private TicketStatus resolveStatusTarget(TicketStatus requested) {
-        if (requested == TicketStatus.REOPENED) {
-            return TicketStatus.ASSIGNED;
-        }
-        return requested;
-    }
-
-    private void requireValidStatusTransition(TicketStatus current, TicketStatus target) {
-        if (current == target) {
-            return;
-        }
-        switch (current) {
-            case NEW -> {
-                if (target != TicketStatus.ASSIGNED && target != TicketStatus.CLOSED) {
-                    throw new BadRequestException("Invalid status transition from NEW to " + target);
-                }
-            }
-            case ASSIGNED -> {
-                if (target != TicketStatus.IN_PROGRESS && target != TicketStatus.RESOLVED) {
-                    throw new BadRequestException("Invalid status transition from ASSIGNED to " + target);
-                }
-            }
-            case IN_PROGRESS -> {
-                if (target != TicketStatus.RESOLVED && target != TicketStatus.ASSIGNED) {
-                    throw new BadRequestException("Invalid status transition from IN_PROGRESS to " + target);
-                }
-            }
-            case RESOLVED -> {
-                if (target != TicketStatus.CLOSED && target != TicketStatus.IN_PROGRESS) {
-                    throw new BadRequestException("Invalid status transition from RESOLVED to " + target);
-                }
-            }
-            case CLOSED -> throw new BadRequestException("Closed tickets cannot change status");
-            case REOPENED -> {
-                // REOPENED is treated as IN_PROGRESS target
-            }
-        }
-    }
-
     private void addStatusHistory(Ticket ticket, TicketStatus from, TicketStatus to, String actor, String reason) {
         TicketStatusHistory history = new TicketStatusHistory();
         history.setFromStatus(from);
@@ -744,4 +702,3 @@ public class TicketService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 }
-
