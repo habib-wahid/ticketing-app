@@ -1,15 +1,14 @@
-
 ### Create a ticket
 POST http://localhost:8080/api/tickets
 Content-Type: application/json
 
 {
-  "title": "LogIn issue after reset",
-  "description": "Can't log in. The system shows an error message.",
-  "category": "ACCOUNT",
+  "title": "Can't create Leave Application",
+  "description": "I am trying to create a leave application but I keep getting an error message saying 'Unable to process your request'. I have tried multiple times and even restarted my computer, but the issue persists. Please help me resolve this issue as soon as possible.",
+  "category": "TECHNICAL",
   "priority": "HIGH",
-  "createdByUserId": "usr_9f62e110",
-  "tags": ["login", "account"],
+  "createdByUserId": "usr_3741f137",
+  "tags": ["leave", "application"],
   "customFields": {
     "browser": "Chrome",
     "os": "macOS"
@@ -21,13 +20,24 @@ POST http://localhost:8080/api/users
 Content-Type: application/json
 
 {
-  "email": "hb@example.com",
-  "password": "ChangeMe123!",
-  "firstName": "habib",
-  "lastName": "wahid",
+  "email": "Smith@gmail.com",
+  "password": "abcd1234",
+  "firstName": "Smith",
+  "lastName": "Johnson",
   "role": "AGENT",
   "isActive": true,
   "emailVerified": false,
-  "department": "GENERAL",
+  "department": "Engineering",
   "managerId": "usr_admin001"
+}
+
+###
+### Assign a ticket
+POST http://localhost:8080/api/tickets/TKT-9ccd62e8/assign
+Content-Type: application/json
+
+{
+  "assignedToUserId": "usr_b5dbd7e6",
+  "assignedByUserId": "usr_3741f137",
+  "reason": "Routing to agent"
 }
