@@ -3,7 +3,7 @@ package com.example.ticketing_app.service;
 import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketAssignedToResponse;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
-import com.example.ticketing_app.dto.TicketAuthorResponse;
+import com.example.ticketing_app.dto.CommentAuthorResponse;
 import com.example.ticketing_app.dto.TicketCommentCreateRequest;
 import com.example.ticketing_app.dto.TicketCommentDeleteRequest;
 import com.example.ticketing_app.dto.TicketCommentResponse;
@@ -21,7 +21,7 @@ import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketAssignedTo;
 import com.example.ticketing_app.entity.TicketAttachment;
-import com.example.ticketing_app.entity.TicketAuthor;
+import com.example.ticketing_app.entity.CommentAuthor;
 import com.example.ticketing_app.entity.TicketComment;
 import com.example.ticketing_app.entity.TicketCreatedBy;
 import com.example.ticketing_app.entity.TicketFilterStatus;
@@ -229,7 +229,7 @@ public class TicketService {
         LocalDateTime now = LocalDateTime.now();
         TicketComment comment = new TicketComment();
         comment.setCommentId(generateCommentId());
-        comment.setAuthor(new TicketAuthor(author.getUserId(), buildFullName(author), author.getRole()));
+        comment.setAuthor(new CommentAuthor(author.getUserId(), buildFullName(author), author.getRole()));
         comment.setText(request.text().trim());
         comment.setInternal(Boolean.TRUE.equals(request.internal()));
         comment.setAttachments(normalizeAttachmentIds(request.attachments()));
@@ -617,18 +617,18 @@ public class TicketService {
         }
         return new TicketCommentResponse(
                 comment.getCommentId(),
-                toAuthorResponse(comment.getAuthor()),
+                toCommentAuthorResponse(comment.getAuthor()),
                 comment.getText(),
                 comment.isInternal(),
                 comment.getAttachments(),
                 comment.getCreatedAt());
     }
 
-    private TicketAuthorResponse toAuthorResponse(TicketAuthor author) {
+    private CommentAuthorResponse toCommentAuthorResponse(CommentAuthor author) {
         if (author == null) {
             return null;
         }
-        return new TicketAuthorResponse(author.getUserId(), author.getFullName(), author.getRole());
+        return new CommentAuthorResponse(author.getUserId(), author.getFullName(), author.getRole());
     }
 
     private List<TicketAttachmentResponse> toAttachmentResponses(List<TicketAttachment> attachments) {
