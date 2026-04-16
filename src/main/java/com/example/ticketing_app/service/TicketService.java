@@ -143,6 +143,7 @@ public class TicketService {
         if (assignedToUserId != null) {
             ticket.setAssignedAt(now);
             addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, createdBy.getUserId(),
+                    buildFullName(createdBy),
                     "Assigned on create");
         }
 
@@ -190,7 +191,7 @@ public class TicketService {
                 ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
                 ticket.setAssignedAt(now);
                 if (ticket.getStatus() == TicketStatus.NEW) {
-                    addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "Assigned");
+                    addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "System", "Assigned");
                     ticket.setStatus(TicketStatus.ASSIGNED);
                 }
             }
@@ -201,7 +202,7 @@ public class TicketService {
             TicketStatus previousStatus = ticket.getStatus();
             ticket.setStatus(targetStatus);
             applyStatusTimestamps(ticket, targetStatus, now);
-            addStatusHistory(ticket, previousStatus, targetStatus, SYSTEM_ACTOR, "Status update");
+            addStatusHistory(ticket, previousStatus, targetStatus, SYSTEM_ACTOR, "System", "Status update");
         }
         applySlaState(ticket, now);
         if (request.tags() != null) {
@@ -316,6 +317,7 @@ public class TicketService {
         ticket.setAssignedAt(now);
         ticket.setUpdatedAt(now);
         addStatusHistory(ticket, previousStatus, requestedStatus, actor.getUserId(),
+                buildFullName(actor),
                 StringUtils.hasText(request.reason()) ? request.reason().trim() : "Assigned");
         return toResponse(ticketRepository.save(ticket));
     }
@@ -335,6 +337,7 @@ public class TicketService {
         ticket.setStatus(targetStatus);
         applyStatusTimestamps(ticket, targetStatus, now);
         addStatusHistory(ticket, previousStatus, targetStatus, actor.getUserId(),
+                buildFullName(actor),
                 StringUtils.hasText(request.reason()) ? request.reason().trim() : "Status changed");
         ticket.setUpdatedAt(now);
         return toResponse(ticketRepository.save(ticket));
@@ -542,11 +545,12 @@ public class TicketService {
         }
     }
 
-    private void addStatusHistory(Ticket ticket, TicketStatus from, TicketStatus to, String actor, String reason) {
+    private void addStatusHistory(Ticket ticket, TicketStatus from, TicketStatus to, String actor, String name, String reason) {
         TicketStatusHistory history = new TicketStatusHistory();
         history.setFromStatus(from);
         history.setToStatus(to);
         history.setChangedBy(actor);
+        history.setName(name);
         history.setChangedAt(LocalDateTime.now());
         history.setReason(reason);
         ticket.getStatusHistory().add(history);
@@ -667,6 +671,7 @@ public class TicketService {
                 history.getFromStatus(),
                 history.getToStatus(),
                 history.getChangedBy(),
+                history.getName(),
                 history.getChangedAt(),
                 history.getReason());
     }
@@ -682,8 +687,12 @@ public class TicketService {
         if (event == null) {
             return null;
         }
-        return new TicketSlaEventResponse(event.getEventType(), event.getTriggeredAt(), event.getNotifiedRoles());
+        return new TicketSlaEventResponse(
+                event.getEventType(),
+                event.getTriggeredAt(),
+                event.getNotifiedRoles());
     }
+
 
     private TicketSlaSummary buildSlaSummary(Ticket ticket) {
         if (ticket.getSlaDeadline() == null) {
