@@ -8,7 +8,7 @@ public record TicketStatusHistoryResponse(
 		TicketStatus fromStatus,
 		TicketStatus toStatus,
 		String changedBy,
+		String name,
 		LocalDateTime changedAt,
 		String reason) {
 }
-

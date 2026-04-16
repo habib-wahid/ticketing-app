@@ -19,16 +19,16 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 	@Query(value = "{}", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
 	List<Ticket> findAllSummary();
 
-	@Query(value = "{ 'createdByUserId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
+	@Query(value = "{ 'createdBy.userId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
 	List<Ticket> findByCreatedByUserIdOrderByCreatedAtDesc(String createdByUserId);
 
-	@Query(value = "{ 'createdByUserId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
+	@Query(value = "{ 'createdBy.userId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
 	List<Ticket> findByCreatedByUserIdAndStatusInOrderByCreatedAtDesc(String createdByUserId, List<TicketStatus> statuses);
 
-	@Query(value = "{ 'createdByUserId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
+	@Query(value = "{ 'createdBy.userId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
 	Page<Ticket> findByCreatedByUserId(String createdByUserId, Pageable pageable);
 
-	@Query(value = "{ 'createdByUserId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
+	@Query(value = "{ 'createdBy.userId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
 	Page<Ticket> findByCreatedByUserIdAndStatusIn(String createdByUserId, List<TicketStatus> statuses, Pageable pageable);
 
     List<Ticket> findAllByCreatedByUserId(String createdByUserId);

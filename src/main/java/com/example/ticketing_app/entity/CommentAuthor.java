@@ -9,10 +9,11 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TicketAuthor {
+public class CommentAuthor {
 
 	private String userId;
 	private String fullName;
 	private UserRole role;
 }
+
 

@@ -14,7 +14,7 @@ public class TicketStatusHistory {
 	private TicketStatus fromStatus;
 	private TicketStatus toStatus;
 	private String changedBy;
+	private String name;
 	private LocalDateTime changedAt;
 	private String reason;
 }
-

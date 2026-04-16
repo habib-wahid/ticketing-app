@@ -14,7 +14,7 @@ import lombok.Setter;
 public class TicketComment {
 
 	private String commentId;
-	private TicketAuthor author;
+	private CommentAuthor author;
 	private String text;
 	private boolean internal;
 	private List<String> attachments = new ArrayList<>();
