@@ -37,6 +37,13 @@ public class UserService {
 		return toResponse(getUserEntity(userId));
 	}
 
+	public List<UserResponse> searchByName(String query) {
+		return userRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(query, query)
+				.stream()
+				.map(this::toResponse)
+				.collect(Collectors.toList());
+	}
+
 	public UserResponse create(UserCreateRequest request) {
 		String normalizedEmail = request.email().trim().toLowerCase();
 		if (userRepository.existsByEmail(normalizedEmail)) {

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.ticketing_app.dto.ApiResponse;
@@ -42,6 +43,11 @@ public class UserController {
 	@GetMapping("/{userId}")
 	public ResponseEntity<ApiResponse<UserResponse>> findByUserId(@PathVariable String userId) {
 		return ResponseEntity.ok(ApiResponse.success("User fetched", userService.findByUserId(userId)));
+	}
+
+	@GetMapping("/search")
+	public ResponseEntity<ApiResponse<List<UserResponse>>> search(@RequestParam String name) {
+		return ResponseEntity.ok(ApiResponse.success("Staff search results fetched", userService.searchByName(name)));
 	}
 
 	@PostMapping
