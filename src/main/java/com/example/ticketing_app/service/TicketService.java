@@ -231,7 +231,7 @@ public class TicketService {
         TicketComment comment = new TicketComment();
         comment.setCommentId(generateCommentId());
         comment.setAuthor(new CommentAuthor(author.getUserId(), buildFullName(author), author.getRole()));
-        comment.setText(request.text().trim());
+        comment.setText(request.content().trim());
         comment.setInternal(Boolean.TRUE.equals(request.internal()));
         comment.setAttachments(normalizeAttachmentIds(request.attachments()));
         comment.setCreatedAt(now);
