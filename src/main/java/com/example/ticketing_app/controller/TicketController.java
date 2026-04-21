@@ -61,6 +61,16 @@ public class TicketController {
         return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findByCreatedByUserId(userId, status, pageRequest)));
     }
 
+    @GetMapping("/assigned/{userId}")
+    public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findAllByAssignedUserId(
+            @PathVariable String userId,
+            @RequestParam(required = false) TicketFilterStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findByAssignedToUserId(userId, status, pageRequest)));
+    }
+
 	@GetMapping("/{ticketId}")
 	public ResponseEntity<ApiResponse<TicketResponse>> findByTicketId(@PathVariable String ticketId) {
 		return ResponseEntity.ok(ApiResponse.success("Ticket fetched", ticketService.findByTicketId(ticketId)));

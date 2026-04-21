@@ -49,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -73,22 +75,17 @@ public class TicketService {
 	}
 
     public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketFilterStatus status, Pageable pageable) {
-        List<TicketStatus> statuses = null;
-        if (status == TicketFilterStatus.PENDING) {
-            statuses = List.of(TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.REOPENED);
-        } else if (status == TicketFilterStatus.RESOLVED) {
-            statuses = List.of(TicketStatus.RESOLVED, TicketStatus.CLOSED);
-        }
+        Page<Ticket> page = fetchTicketPage(status,
+                () -> ticketRepository.findByCreatedByUserId(userId, pageable),
+                statuses -> ticketRepository.findByCreatedByUserIdAndStatusIn(userId, statuses, pageable));
+        return toSummaryPage(page);
+    }
 
-        Page<Ticket> page;
-        if (statuses == null) {
-            page = ticketRepository.findByCreatedByUserId(userId, pageable);
-        } else {
-            page = ticketRepository.findByCreatedByUserIdAndStatusIn(userId, statuses, pageable);
-        }
-
-        List<TicketSummaryResponse> responses = page.getContent().stream().map(this::toSummaryResponse).collect(Collectors.toList());
-        return new PageImpl<>(responses, pageable, page.getTotalElements());
+    public Page<TicketSummaryResponse> findByAssignedToUserId(String userId, TicketFilterStatus status, Pageable pageable) {
+        Page<Ticket> page = fetchTicketPage(status,
+                () -> ticketRepository.findByAssignedToUserId(userId, pageable),
+                statuses -> ticketRepository.findByAssignedToUserIdAndStatusIn(userId, statuses, pageable));
+        return toSummaryPage(page);
     }
 
 	private Map<String, String> loadAssignedUserNames(List<Ticket> tickets) {
@@ -709,5 +706,26 @@ public class TicketService {
 
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private Page<TicketSummaryResponse> toSummaryPage(Page<Ticket> page) {
+        List<TicketSummaryResponse> responses = page.getContent().stream().map(this::toSummaryResponse).collect(Collectors.toList());
+        return new PageImpl<>(responses, page.getPageable(), page.getTotalElements());
+    }
+
+    private Page<Ticket> fetchTicketPage(TicketFilterStatus status,
+            Supplier<Page<Ticket>> noStatusSupplier,
+            Function<List<TicketStatus>, Page<Ticket>> withStatusSupplier) {
+        List<TicketStatus> statuses = null;
+        if (status == TicketFilterStatus.PENDING) {
+            statuses = List.of(TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.REOPENED);
+        } else if (status == TicketFilterStatus.RESOLVED) {
+            statuses = List.of(TicketStatus.RESOLVED, TicketStatus.CLOSED);
+        }
+
+        if (statuses == null) {
+            return noStatusSupplier.get();
+        }
+        return withStatusSupplier.apply(statuses);
     }
 }

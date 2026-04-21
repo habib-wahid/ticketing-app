@@ -40,4 +40,16 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 			LocalDateTime createdAt);
 
 	boolean existsByTicketId(String ticketId);
+
+	@Query(value = "{ 'assignedTo.userId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
+	List<Ticket> findByAssignedToUserIdOrderByCreatedAtDesc(String assignedToUserId);
+
+	@Query(value = "{ 'assignedTo.userId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
+	List<Ticket> findByAssignedToUserIdAndStatusInOrderByCreatedAtDesc(String assignedToUserId, List<TicketStatus> statuses);
+
+	@Query(value = "{ 'assignedTo.userId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
+	Page<Ticket> findByAssignedToUserId(String assignedToUserId, Pageable pageable);
+
+	@Query(value = "{ 'assignedTo.userId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
+	Page<Ticket> findByAssignedToUserIdAndStatusIn(String assignedToUserId, List<TicketStatus> statuses, Pageable pageable);
 }
