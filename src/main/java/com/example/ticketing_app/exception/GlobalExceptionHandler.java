@@ -35,6 +35,16 @@ public class GlobalExceptionHandler {
 		return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
 	}
 
+	@ExceptionHandler(UnauthorizedException.class)
+	public ResponseEntity<ApiResponse<Object>> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
+		return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request.getRequestURI());
+	}
+
+	@ExceptionHandler(ForbiddenException.class)
+	public ResponseEntity<ApiResponse<Object>> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
+		return build(HttpStatus.FORBIDDEN, ex.getMessage(), request.getRequestURI());
+	}
+
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiResponse<Object>> handleUnexpected(Exception ex, HttpServletRequest request) {
 		return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", request.getRequestURI());

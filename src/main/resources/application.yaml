@@ -12,6 +12,13 @@ springdoc:
     path: /swagger-ui
     url: /api-docs
 
+security:
+  jwt:
+    secret: change-me-please-change-me-please-32-characters-minimum
+    issuer: ticketing-app
+    access-token-minutes: 60
+    refresh-token-days: 7
+
 logging:
   level:
     org.springframework.data.mongodb.core.MongoTemplate: DEBUG

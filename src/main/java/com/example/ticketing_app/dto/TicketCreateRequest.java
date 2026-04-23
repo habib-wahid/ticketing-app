@@ -15,7 +15,7 @@ public record TicketCreateRequest(
 		@NotBlank @Size(min = 10, max = 5000) String description,
 		@NotNull TicketCategory category,
 		@NotNull TicketPriority priority,
-		@NotBlank String createdByUserId,
+		String createdByUserId,
 		String assignedToUserId,
 		@Size(max = 5) List<@Size(max = 20) String> tags,
 		Map<String, Object> customFields) {
