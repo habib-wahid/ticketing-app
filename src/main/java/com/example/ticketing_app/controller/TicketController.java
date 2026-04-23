@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +32,8 @@ import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.entity.TicketFilterStatus;
+import com.example.ticketing_app.security.UserPrincipal;
+import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.service.TicketService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,8 +50,9 @@ public class TicketController {
 	}
 
 	@GetMapping
-	public ResponseEntity<ApiResponse<List<TicketSummaryResponse>>> findAll() {
-		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll()));
+	public ResponseEntity<ApiResponse<List<TicketSummaryResponse>>> findAll(
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll(actor(principal))));
 	}
 
     @GetMapping("/user/{userId}")
@@ -72,8 +76,9 @@ public class TicketController {
     }
 
 	@GetMapping("/{ticketId}")
-	public ResponseEntity<ApiResponse<TicketResponse>> findByTicketId(@PathVariable String ticketId) {
-		return ResponseEntity.ok(ApiResponse.success("Ticket fetched", ticketService.findByTicketId(ticketId)));
+	public ResponseEntity<ApiResponse<TicketResponse>> findByTicketId(@PathVariable String ticketId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket fetched", ticketService.findByTicketId(ticketId, actor(principal))));
 	}
 
 	@GetMapping("/{ticketId}/comments")
@@ -82,9 +87,10 @@ public class TicketController {
 	}
 
 	@PostMapping
-	public ResponseEntity<ApiResponse<TicketResponse>> create(@Valid @RequestBody TicketCreateRequest request) {
+	public ResponseEntity<ApiResponse<TicketResponse>> create(@Valid @RequestBody TicketCreateRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ApiResponse.success("Ticket created", ticketService.create(request)));
+				.body(ApiResponse.success("Ticket created", ticketService.create(request, actor(principal))));
 	}
 
 	@PostMapping("/{ticketId}/comments")
@@ -102,8 +108,9 @@ public class TicketController {
 
 	@PutMapping("/{ticketId}")
 	public ResponseEntity<ApiResponse<TicketResponse>> update(@PathVariable String ticketId,
-			@Valid @RequestBody TicketUpdateRequest request) {
-		return ResponseEntity.ok(ApiResponse.success("Ticket updated", ticketService.update(ticketId, request)));
+			@Valid @RequestBody TicketUpdateRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket updated", ticketService.update(ticketId, request, actor(principal))));
 	}
 
 	@PutMapping("/{ticketId}/status")
@@ -119,9 +126,14 @@ public class TicketController {
 	}
 
 	@DeleteMapping("/{ticketId}")
-	public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String ticketId) {
-		ticketService.delete(ticketId);
+	public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String ticketId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		ticketService.delete(ticketId, actor(principal));
 		return ResponseEntity.ok(ApiResponse.success("Ticket deleted", null));
+	}
+
+	private ActorContext actor(UserPrincipal principal) {
+		return new ActorContext(principal.getUserId(), principal.getRole());
 	}
 
 	@DeleteMapping("/{ticketId}/comments/{commentId}")

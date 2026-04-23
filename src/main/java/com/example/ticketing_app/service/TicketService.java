@@ -1,6 +1,7 @@
 package com.example.ticketing_app.service;
 
 import com.example.ticketing_app.dto.TicketAssignRequest;
+import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.dto.TicketAssignedToResponse;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
 import com.example.ticketing_app.dto.CommentAuthorResponse;
@@ -32,6 +33,7 @@ import com.example.ticketing_app.entity.TicketStatusHistory;
 import com.example.ticketing_app.entity.User;
 import com.example.ticketing_app.entity.UserRole;
 import com.example.ticketing_app.exception.BadRequestException;
+import com.example.ticketing_app.exception.ForbiddenException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.TicketRepository;
 import com.example.ticketing_app.repository.UserRepository;
@@ -69,10 +71,12 @@ public class TicketService {
         this.slaPolicyService = slaPolicyService;
     }
 
-    public List<TicketSummaryResponse> findAll() {
-		List<Ticket> tickets = ticketRepository.findAllSummary();
-		return tickets.stream().map(this::toSummaryResponse).collect(Collectors.toList());
-	}
+    public List<TicketSummaryResponse> findAll(ActorContext actor) {
+    List<Ticket> tickets = actor.isAdmin()
+        ? ticketRepository.findAllSummary()
+        : ticketRepository.findByCreatedByUserId(actor.userId());
+    return tickets.stream().map(this::toSummaryResponse).collect(Collectors.toList());
+  }
 
     public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketFilterStatus status, Pageable pageable) {
         Page<Ticket> page = fetchTicketPage(status,
@@ -92,19 +96,21 @@ public class TicketService {
 		return Collections.emptyMap();
 	}
 
-    public TicketResponse findByTicketId(String ticketId) {
-        return toResponse(getTicketEntity(ticketId));
+    public TicketResponse findByTicketId(String ticketId, ActorContext actor) {
+        return toResponse(getTicketEntity(ticketId, actor));
     }
 
-    public TicketResponse create(TicketCreateRequest request) {
-        if (!StringUtils.hasText(request.createdByUserId())) {
-            throw new BadRequestException("createdByUserId is required");
-        }
-
-        User createdBy = userRepository.findByUserId(request.createdByUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Created-by user not found: " + request.createdByUserId()));
+    public TicketResponse create(TicketCreateRequest request, ActorContext actor) {
+        String createdByUserId = actor.isAdmin() && StringUtils.hasText(request.createdByUserId())
+                ? request.createdByUserId().trim()
+                : actor.userId();
+        User createdBy = userRepository.findByUserId(createdByUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Created-by user not found: " + createdByUserId));
 
         String assignedToUserId = normalize(request.assignedToUserId());
+        if (!actor.isAdmin() && assignedToUserId != null) {
+            throw new ForbiddenException("Only admins can assign tickets");
+        }
 
         if (createdBy.getRole() == UserRole.CUSTOMER && assignedToUserId != null) {
             throw new BadRequestException("Customers cannot assign tickets to agents");
@@ -153,8 +159,11 @@ public class TicketService {
         return toResponse(ticketRepository.save(ticket));
     }
 
-    public TicketResponse update(String ticketId, TicketUpdateRequest request) {
-        Ticket ticket = getTicketEntity(ticketId);
+    public TicketResponse update(String ticketId, TicketUpdateRequest request, ActorContext actor) {
+        Ticket ticket = getTicketEntity(ticketId, actor);
+        if (!actor.isAdmin() && (request.assignedToUserId() != null || request.status() != null)) {
+            throw new ForbiddenException("Only admins can change assignee or status");
+        }
         LocalDateTime now = LocalDateTime.now();
 
         if (StringUtils.hasText(request.title())) {
@@ -282,8 +291,8 @@ public class TicketService {
         ticketRepository.save(ticket);
     }
 
-    public void delete(String ticketId) {
-        Ticket ticket = getTicketEntity(ticketId);
+    public void delete(String ticketId, ActorContext actor) {
+        Ticket ticket = getTicketEntity(ticketId, actor);
         ticketRepository.delete(ticket);
     }
 
@@ -343,6 +352,22 @@ public class TicketService {
     private Ticket getTicketEntity(String ticketId) {
         return ticketRepository.findByTicketId(ticketId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: " + ticketId));
+    }
+
+    private Ticket getTicketEntity(String ticketId, ActorContext actor) {
+        Ticket ticket = getTicketEntity(ticketId);
+        ensureAccess(ticket, actor);
+        return ticket;
+    }
+
+    private void ensureAccess(Ticket ticket, ActorContext actor) {
+        if (actor.isAdmin()) {
+            return;
+        }
+        TicketCreatedBy createdBy = ticket.getCreatedBy();
+        if (createdBy == null || !actor.userId().equals(createdBy.getUserId())) {
+            throw new ForbiddenException("You can only access your own tickets");
+        }
     }
 
     private TicketResponse toResponse(Ticket ticket) {

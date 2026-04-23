@@ -20,6 +20,11 @@ Spring Boot + MongoDB ticketing system with basic CRUD APIs for:
 
 ## API Endpoints
 
+### Auth
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+
 ### Users
 - `GET /api/users`
 - `GET /api/users/{userId}`
@@ -33,6 +38,10 @@ Spring Boot + MongoDB ticketing system with basic CRUD APIs for:
 - `POST /api/tickets`
 - `PUT /api/tickets/{ticketId}`
 - `DELETE /api/tickets/{ticketId}`
+
+### Security Notes
+- Use `Authorization: Bearer <accessToken>` for secured endpoints.
+- ADMIN can access all tickets; non-admin users only access their own tickets.
 
 ### SLA Policies
 - `GET /api/sla-policies`
@@ -49,4 +58,5 @@ Spring Boot + MongoDB ticketing system with basic CRUD APIs for:
 ## Notes
 
 - User passwords are hashed with BCrypt before storage.
+- JWT settings live under `security.jwt` in `src/main/resources/application.yaml`.
 - Ticket creation calculates an SLA deadline using the configured SLA policy, with a sensible fallback if no policy exists yet.
