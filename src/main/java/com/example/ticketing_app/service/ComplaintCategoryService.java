@@ -4,8 +4,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.example.ticketing_app.dto.ComplaintCategoryCreateRequest;
@@ -82,6 +83,14 @@ public class ComplaintCategoryService {
 		complaintCategoryRepository.delete(category);
 	}
 
+	public Page<ComplaintCategoryResponse> findAll(String name, Pageable pageable) {
+		if (StringUtils.hasText(name)) {
+			return complaintCategoryRepository.findByNameContainingIgnoreCase(name.trim(), pageable)
+					.map(this::toResponse);
+		}
+		return complaintCategoryRepository.findAll(pageable).map(this::toResponse);
+	}
+
 	private ComplaintCategory getCategoryEntity(String id) {
 		return complaintCategoryRepository.findById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Complaint category not found: " + id));
@@ -125,4 +134,3 @@ public class ComplaintCategoryService {
 		return StringUtils.hasText(name) ? name.trim() : null;
 	}
 }
-
