@@ -12,18 +12,23 @@ import com.example.ticketing_app.dto.ComplaintCategoryCreateRequest;
 import com.example.ticketing_app.dto.ComplaintCategoryResponse;
 import com.example.ticketing_app.dto.ComplaintCategoryUpdateRequest;
 import com.example.ticketing_app.entity.ComplaintCategory;
+import com.example.ticketing_app.entity.User;
 import com.example.ticketing_app.exception.ConflictException;
 import com.example.ticketing_app.exception.ForbiddenException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.ComplaintCategoryRepository;
+import com.example.ticketing_app.repository.UserRepository;
 
 @Service
 public class ComplaintCategoryService {
 
 	private final ComplaintCategoryRepository complaintCategoryRepository;
+	private final UserRepository userRepository;
 
-	public ComplaintCategoryService(ComplaintCategoryRepository complaintCategoryRepository) {
+	public ComplaintCategoryService(ComplaintCategoryRepository complaintCategoryRepository,
+			UserRepository userRepository) {
 		this.complaintCategoryRepository = complaintCategoryRepository;
+		this.userRepository = userRepository;
 	}
 
 	public List<ComplaintCategoryResponse> findAll() {
@@ -86,10 +91,34 @@ public class ComplaintCategoryService {
 		return new ComplaintCategoryResponse(
 				category.getId(),
 				category.getName(),
-				category.getCreatedBy(),
+				resolveUserName(category.getCreatedBy()),
 				category.getCreatedAt(),
-				category.getUpdatedBy(),
+				resolveUserName(category.getUpdatedBy()),
 				category.getUpdatedAt());
+	}
+
+	private String resolveUserName(String userId) {
+		if (!StringUtils.hasText(userId)) {
+			return null;
+		}
+		return userRepository.findByUserId(userId)
+				.map(this::buildFullName)
+				.orElse(userId);
+	}
+
+	private String buildFullName(User user) {
+		String first = normalizeName(user.getFirstName());
+		String last = normalizeName(user.getLastName());
+		if (first == null && last == null) {
+			return user.getUserId();
+		}
+		if (first == null) {
+			return last;
+		}
+		if (last == null) {
+			return first;
+		}
+		return first + " " + last;
 	}
 
 	private String normalizeName(String name) {
