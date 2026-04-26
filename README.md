@@ -1,10 +1,28 @@
 # Ticketing App
 
-Spring Boot + MongoDB ticketing system with basic CRUD APIs for:
+Spring Boot + MongoDB ticketing system with CRUD APIs for internal support workflows. It focuses on managing ticket lifecycles, user access, and SLA policy enforcement in a secure, role-aware backend.
 
-- Users
-- Tickets
-- SLA policies
+## Project Scope
+
+This project provides a backend API for managing users, tickets, SLA policies, and complaint categories with JWT-based security. It covers ticket creation, assignment, status transitions, internal comments, and SLA timing, while keeping authorization rules centralized for admins and non-admin users.
+
+## Technologies
+
+- Java 17
+- Spring Boot
+- Spring Security (JWT)
+- Spring Data MongoDB
+- Gradle
+- Swagger / OpenAPI
+
+## Features
+
+- Authentication (register, login, refresh)
+- User management CRUD
+- Ticket management CRUD with comments, assignments, and status changes
+- SLA policy management CRUD
+- Complaint category management CRUD
+- Role-aware access controls (ADMIN vs non-admin)
 
 ## Run
 
@@ -18,37 +36,11 @@ Spring Boot + MongoDB ticketing system with basic CRUD APIs for:
 ./gradlew test
 ```
 
-## API Endpoints
+## Security Notes
 
-### Auth
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-
-### Users
-- `GET /api/users`
-- `GET /api/users/{userId}`
-- `POST /api/users`
-- `PUT /api/users/{userId}`
-- `DELETE /api/users/{userId}`
-
-### Tickets
-- `GET /api/tickets`
-- `GET /api/tickets/{ticketId}`
-- `POST /api/tickets`
-- `PUT /api/tickets/{ticketId}`
-- `DELETE /api/tickets/{ticketId}`
-
-### Security Notes
 - Use `Authorization: Bearer <accessToken>` for secured endpoints.
 - ADMIN can access all tickets; non-admin users only access their own tickets.
-
-### SLA Policies
-- `GET /api/sla-policies`
-- `GET /api/sla-policies/{id}`
-- `POST /api/sla-policies`
-- `PUT /api/sla-policies/{id}`
-- `DELETE /api/sla-policies/{id}`
+- Only ADMIN can create complaint categories.
 
 ## API Docs
 
