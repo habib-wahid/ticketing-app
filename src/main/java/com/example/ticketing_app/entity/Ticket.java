@@ -28,7 +28,7 @@ public class Ticket {
 
 	private String title;
 	private String description;
-	private TicketCategory category;
+	private ComplaintCategory category;
 	private TicketPriority priority;
 	private TicketStatus status = TicketStatus.NEW;
 	private TicketCreatedBy createdBy;

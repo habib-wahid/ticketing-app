@@ -1,6 +1,7 @@
 package com.example.ticketing_app.service;
 
 import com.example.ticketing_app.dto.TicketAssignRequest;
+import com.example.ticketing_app.dto.ComplaintCategorySummaryResponse;
 import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.dto.TicketAssignedToResponse;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
@@ -19,6 +20,7 @@ import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.entity.SlaPolicy;
+import com.example.ticketing_app.entity.ComplaintCategory;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketAssignedTo;
 import com.example.ticketing_app.entity.TicketAttachment;
@@ -37,6 +39,7 @@ import com.example.ticketing_app.exception.ForbiddenException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.TicketRepository;
 import com.example.ticketing_app.repository.UserRepository;
+import com.example.ticketing_app.repository.ComplaintCategoryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -64,11 +67,14 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final SlaPolicyService slaPolicyService;
+    private final ComplaintCategoryRepository complaintCategoryRepository;
 
-    public TicketService(TicketRepository ticketRepository, UserRepository userRepository, SlaPolicyService slaPolicyService) {
+    public TicketService(TicketRepository ticketRepository, UserRepository userRepository, SlaPolicyService slaPolicyService,
+            ComplaintCategoryRepository complaintCategoryRepository) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
         this.slaPolicyService = slaPolicyService;
+        this.complaintCategoryRepository = complaintCategoryRepository;
     }
 
     public List<TicketSummaryResponse> findAll(ActorContext actor) {
@@ -107,6 +113,8 @@ public class TicketService {
         User createdBy = userRepository.findByUserId(createdByUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Created-by user not found: " + createdByUserId));
 
+        ComplaintCategory complaintCategory = resolveComplaintCategory(request.complaintCategoryId());
+
         String assignedToUserId = normalize(request.assignedToUserId());
         if (!actor.isAdmin() && assignedToUserId != null) {
             throw new ForbiddenException("Only admins can assign tickets");
@@ -135,7 +143,7 @@ public class TicketService {
         ticket.setTicketId(generateTicketId());
         ticket.setTitle(normalizedTitle);
         ticket.setDescription(request.description().trim());
-        ticket.setCategory(request.category());
+        ticket.setCategory(complaintCategory);
         ticket.setPriority(request.priority());
         ticket.setStatus(StringUtils.hasText(assignedToUserId) ? TicketStatus.ASSIGNED : TicketStatus.NEW);
         ticket.setCreatedBy(new TicketCreatedBy(buildFullName(createdBy), createdBy.getUserId(), createdBy.getRole()));
@@ -161,9 +169,7 @@ public class TicketService {
 
     public TicketResponse update(String ticketId, TicketUpdateRequest request, ActorContext actor) {
         Ticket ticket = getTicketEntity(ticketId, actor);
-        if (!actor.isAdmin() && (request.assignedToUserId() != null || request.status() != null)) {
-            throw new ForbiddenException("Only admins can change assignee or status");
-        }
+
         LocalDateTime now = LocalDateTime.now();
 
         if (StringUtils.hasText(request.title())) {
@@ -172,8 +178,12 @@ public class TicketService {
         if (StringUtils.hasText(request.description())) {
             ticket.setDescription(request.description().trim());
         }
-        if (request.category() != null) {
-            ticket.setCategory(request.category());
+        if (request.complaintCategoryId() != null) {
+            String complaintCategoryId = normalize(request.complaintCategoryId());
+            if (!StringUtils.hasText(complaintCategoryId)) {
+                throw new BadRequestException("Complaint category id cannot be blank");
+            }
+            ticket.setCategory(resolveComplaintCategory(complaintCategoryId));
         }
         if (request.priority() != null && request.priority() != ticket.getPriority()) {
             ticket.setPriority(request.priority());
@@ -375,7 +385,7 @@ public class TicketService {
                 ticket.getTicketId(),
                 ticket.getTitle(),
                 ticket.getDescription(),
-                ticket.getCategory(),
+                toCategorySummary(ticket.getCategory()),
                 ticket.getPriority(),
                 ticket.getStatus(),
                 toCreatedByResponse(ticket),
@@ -408,7 +418,7 @@ public class TicketService {
 				ticket.getTicketId(),
 				ticket.getTitle(),
 				ticket.getDescription(),
-				ticket.getCategory(),
+				toCategorySummary(ticket.getCategory()),
 				ticket.getPriority(),
 				ticket.getStatus(),
 				toCreatedByResponse(ticket),
@@ -417,15 +427,15 @@ public class TicketService {
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
 				buildSlaSummary(ticket),
-				ticket.getResponseDeadline(),
-				ticket.getEscalationDueAt(),
-				ticket.getNextReminderAt(),
-				ticket.getSlaBreachedAt(),
-				ticket.getEscalationLevel(),
-				ticket.getTags(),
-				ticket.getCustomFields(),
-				ticket.getCreatedAt(),
-				ticket.getUpdatedAt());
+			 ticket.getResponseDeadline(),
+			 ticket.getEscalationDueAt(),
+			 ticket.getNextReminderAt(),
+			 ticket.getSlaBreachedAt(),
+			 ticket.getEscalationLevel(),
+			 ticket.getTags(),
+			 ticket.getCustomFields(),
+			 ticket.getCreatedAt(),
+			 ticket.getUpdatedAt());
 	}
 
 	private TicketAssignedToResponse toAssignedToResponse(TicketAssignedTo assignedTo) {
@@ -752,5 +762,21 @@ public class TicketService {
             return noStatusSupplier.get();
         }
         return withStatusSupplier.apply(statuses);
+    }
+
+    private ComplaintCategory resolveComplaintCategory(String complaintCategoryId) {
+        String normalizedId = normalize(complaintCategoryId);
+        if (!StringUtils.hasText(normalizedId)) {
+            throw new BadRequestException("Complaint category id is required");
+        }
+        return complaintCategoryRepository.findById(normalizedId)
+                .orElseThrow(() -> new ResourceNotFoundException("Complaint category not found: " + normalizedId));
+    }
+
+    private ComplaintCategorySummaryResponse toCategorySummary(ComplaintCategory category) {
+        if (category == null) {
+            return null;
+        }
+        return new ComplaintCategorySummaryResponse(category.getId(), category.getName());
     }
 }
