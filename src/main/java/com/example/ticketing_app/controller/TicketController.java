@@ -50,9 +50,12 @@ public class TicketController {
 	}
 
 	@GetMapping
-	public ResponseEntity<ApiResponse<List<TicketSummaryResponse>>> findAll(
+	public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findAll(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "10") int size,
 			@AuthenticationPrincipal UserPrincipal principal) {
-		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll(actor(principal))));
+		PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll(actor(principal), pageRequest)));
 	}
 
     @GetMapping("/user/{userId}")

@@ -19,6 +19,9 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 	@Query(value = "{}", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
 	List<Ticket> findAllSummary();
 
+	@Query(value = "{}", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
+	Page<Ticket> findAllSummary(Pageable pageable);
+
 	@Query(value = "{ 'createdBy.userId': ?0 }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }", sort = "{ 'createdAt': -1 }")
 	List<Ticket> findByCreatedByUserIdOrderByCreatedAtDesc(String createdByUserId);
 

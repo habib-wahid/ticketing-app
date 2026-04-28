@@ -40,6 +40,7 @@ import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.TicketRepository;
 import com.example.ticketing_app.repository.UserRepository;
 import com.example.ticketing_app.repository.ComplaintCategoryRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -58,6 +59,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class TicketService {
 
@@ -77,12 +79,15 @@ public class TicketService {
         this.complaintCategoryRepository = complaintCategoryRepository;
     }
 
-    public List<TicketSummaryResponse> findAll(ActorContext actor) {
-    List<Ticket> tickets = actor.isAdmin()
-        ? ticketRepository.findAllSummary()
-        : ticketRepository.findByCreatedByUserId(actor.userId());
-    return tickets.stream().map(this::toSummaryResponse).collect(Collectors.toList());
-  }
+    public Page<TicketSummaryResponse> findAll(ActorContext actor, Pageable pageable) {
+        log.info("Finding tickets for actor {}", actor);
+        Page<Ticket> page = actor.isAdmin()
+                ? ticketRepository.findAllSummary(pageable)
+
+                : ticketRepository.findByCreatedByUserId(actor.userId(), pageable);
+        log.info("Found total {} tickets", page.getTotalElements());
+        return toSummaryPage(page);
+    }
 
     public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketFilterStatus status, Pageable pageable) {
         Page<Ticket> page = fetchTicketPage(status,
@@ -169,7 +174,9 @@ public class TicketService {
 
     public TicketResponse update(String ticketId, TicketUpdateRequest request, ActorContext actor) {
         Ticket ticket = getTicketEntity(ticketId, actor);
-
+        if (!actor.isAdmin() && (request.assignedToUserId() != null || request.status() != null)) {
+            throw new ForbiddenException("Only admins can change assignee or status");
+        }
         LocalDateTime now = LocalDateTime.now();
 
         if (StringUtils.hasText(request.title())) {
