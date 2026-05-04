@@ -55,4 +55,12 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 
 	@Query(value = "{ 'assignedTo.userId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
 	Page<Ticket> findByAssignedToUserIdAndStatusIn(String assignedToUserId, List<TicketStatus> statuses, Pageable pageable);
+
+	long countByStatus(TicketStatus status);
+
+	long countByStatusIn(List<TicketStatus> statuses);
+
+	long countByCreatedByUserIdAndStatus(String createdByUserId, TicketStatus status);
+
+	long countByCreatedByUserIdAndStatusIn(String createdByUserId, List<TicketStatus> statuses);
 }

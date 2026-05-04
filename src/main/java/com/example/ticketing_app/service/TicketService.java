@@ -12,6 +12,7 @@ import com.example.ticketing_app.dto.TicketCommentResponse;
 import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketCreatedByResponse;
+import com.example.ticketing_app.dto.TicketDashboardResponse;
 import com.example.ticketing_app.dto.TicketResponse;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
@@ -364,6 +365,23 @@ public class TicketService {
                 StringUtils.hasText(request.reason()) ? request.reason().trim() : "Status changed");
         ticket.setUpdatedAt(now);
         return toResponse(ticketRepository.save(ticket));
+    }
+
+    public TicketDashboardResponse getDashboardCounts(ActorContext actor) {
+        List<TicketStatus> openStatuses = List.of(
+                TicketStatus.NEW,
+                TicketStatus.ASSIGNED,
+                TicketStatus.IN_PROGRESS,
+                TicketStatus.REOPENED,
+                TicketStatus.RESOLVED);
+        List<TicketStatus> inProcessStatuses = List.of(TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS);
+
+        long openTickets = countByStatusIn(actor, openStatuses);
+        long newTickets = countByStatus(actor, TicketStatus.NEW);
+        long inProcessTickets = countByStatusIn(actor, inProcessStatuses);
+        long closedTickets = countByStatus(actor, TicketStatus.CLOSED);
+
+        return new TicketDashboardResponse(openTickets, newTickets, inProcessTickets, closedTickets);
     }
 
     private Ticket getTicketEntity(String ticketId) {
@@ -785,5 +803,13 @@ public class TicketService {
             return null;
         }
         return new ComplaintCategorySummaryResponse(category.getId(), category.getName());
+    }
+
+    private long countByStatus(ActorContext actor, TicketStatus status) {
+        return ticketRepository.countByStatus(status);
+    }
+
+    private long countByStatusIn(ActorContext actor, List<TicketStatus> statuses) {
+        return ticketRepository.countByStatusIn(statuses);
     }
 }
