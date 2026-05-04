@@ -12,6 +12,10 @@ import com.example.ticketing_app.dto.TicketCommentResponse;
 import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketCreatedByResponse;
+import com.example.ticketing_app.dto.TicketDashboardResponse;
+import com.example.ticketing_app.dto.TicketComplaintCategoryDashboardResponse;
+import com.example.ticketing_app.dto.TicketCategoryCountResponse;
+import com.example.ticketing_app.dto.TicketPriorityDashboardResponse;
 import com.example.ticketing_app.dto.TicketResponse;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
@@ -40,6 +44,7 @@ import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.TicketRepository;
 import com.example.ticketing_app.repository.UserRepository;
 import com.example.ticketing_app.repository.ComplaintCategoryRepository;
+import com.example.ticketing_app.repository.TicketCategoryCountProjection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -366,6 +371,44 @@ public class TicketService {
         return toResponse(ticketRepository.save(ticket));
     }
 
+    public TicketDashboardResponse getDashboardCounts(ActorContext actor, LocalDateTime from, LocalDateTime to) {
+        validateDateRange(from, to);
+        List<TicketStatus> openStatuses = List.of(
+                TicketStatus.NEW,
+                TicketStatus.ASSIGNED,
+                TicketStatus.IN_PROGRESS,
+                TicketStatus.REOPENED,
+                TicketStatus.RESOLVED);
+        List<TicketStatus> inProcessStatuses = List.of(TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS);
+
+        long openTickets = countByStatusIn(openStatuses, from, to);
+        long newTickets = countByStatus(TicketStatus.NEW, from, to);
+        long inProcessTickets = countByStatusIn(inProcessStatuses, from, to);
+        long closedTickets = countByStatus(TicketStatus.CLOSED, from, to);
+
+        return new TicketDashboardResponse(openTickets, newTickets, inProcessTickets, closedTickets);
+    }
+
+    public TicketPriorityDashboardResponse getDashboardCountsByPriority(ActorContext actor, LocalDateTime from, LocalDateTime to) {
+        validateDateRange(from, to);
+        long low = countByPriority(TicketPriority.LOW, from, to);
+        long medium = countByPriority(TicketPriority.MEDIUM, from, to);
+        long high = countByPriority(TicketPriority.HIGH, from, to);
+        long critical = countByPriority(TicketPriority.CRITICAL, from, to);
+
+        return new TicketPriorityDashboardResponse(low, medium, high, critical);
+    }
+
+    public TicketComplaintCategoryDashboardResponse getDashboardCountsByComplaintCategory(ActorContext actor,
+            LocalDateTime from, LocalDateTime to) {
+        validateDateRange(from, to);
+        List<TicketCategoryCountProjection> counts = countByComplaintCategory(from, to);
+        List<TicketCategoryCountResponse> responses = counts.stream()
+                .map(this::toCategoryCountResponse)
+                .collect(Collectors.toList());
+        return new TicketComplaintCategoryDashboardResponse(responses);
+    }
+
     private Ticket getTicketEntity(String ticketId) {
         return ticketRepository.findByTicketId(ticketId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: " + ticketId));
@@ -603,6 +646,12 @@ public class TicketService {
         }
     }
 
+    private void validateDateRange(LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BadRequestException("from must be before to");
+        }
+    }
+
     private List<String> normalizeAttachmentIds(List<String> attachments) {
         if (attachments == null) {
             return new ArrayList<>();
@@ -785,5 +834,65 @@ public class TicketService {
             return null;
         }
         return new ComplaintCategorySummaryResponse(category.getId(), category.getName());
+    }
+
+    private long countByStatus(TicketStatus status, LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null) {
+            return ticketRepository.countByStatusAndCreatedAtBetween(status, from, to);
+        }
+        if (from != null) {
+            return ticketRepository.countByStatusAndCreatedAtGreaterThanEqual(status, from);
+        }
+        if (to != null) {
+            return ticketRepository.countByStatusAndCreatedAtLessThanEqual(status, to);
+        }
+        return ticketRepository.countByStatus(status);
+    }
+
+    private long countByStatusIn(List<TicketStatus> statuses, LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null) {
+            return ticketRepository.countByStatusInAndCreatedAtBetween(statuses, from, to);
+        }
+        if (from != null) {
+            return ticketRepository.countByStatusInAndCreatedAtGreaterThanEqual(statuses, from);
+        }
+        if (to != null) {
+            return ticketRepository.countByStatusInAndCreatedAtLessThanEqual(statuses, to);
+        }
+        return ticketRepository.countByStatusIn(statuses);
+    }
+
+    private long countByPriority(TicketPriority priority, LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null) {
+            return ticketRepository.countByPriorityAndCreatedAtBetween(priority, from, to);
+        }
+        if (from != null) {
+            return ticketRepository.countByPriorityAndCreatedAtGreaterThanEqual(priority, from);
+        }
+        if (to != null) {
+            return ticketRepository.countByPriorityAndCreatedAtLessThanEqual(priority, to);
+        }
+        return ticketRepository.countByPriority(priority);
+    }
+
+    private TicketCategoryCountResponse toCategoryCountResponse(TicketCategoryCountProjection projection) {
+        String name = projection.getCategoryName();
+        if (!StringUtils.hasText(name)) {
+            name = projection.getCategoryId();
+        }
+        return new TicketCategoryCountResponse(projection.getCategoryId(), name, projection.getCount());
+    }
+
+    private List<TicketCategoryCountProjection> countByComplaintCategory(LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null) {
+            return ticketRepository.countByCategoryCreatedAtBetween(from, to);
+        }
+        if (from != null) {
+            return ticketRepository.countByCategoryCreatedAtGreaterThanEqual(from);
+        }
+        if (to != null) {
+            return ticketRepository.countByCategoryCreatedAtLessThanEqual(to);
+        }
+        return ticketRepository.countByCategory();
     }
 }
