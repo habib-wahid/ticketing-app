@@ -399,14 +399,10 @@ public class TicketService {
         return new TicketPriorityDashboardResponse(low, medium, high, critical);
     }
 
-    public TicketComplaintCategoryDashboardResponse getDashboardCountsByComplaintCategory(ActorContext actor,
+    public List<TicketCategoryCountProjection> getDashboardCountsByComplaintCategory(ActorContext actor,
             LocalDateTime from, LocalDateTime to) {
         validateDateRange(from, to);
-        List<TicketCategoryCountProjection> counts = countByComplaintCategory(from, to);
-        List<TicketCategoryCountResponse> responses = counts.stream()
-                .map(this::toCategoryCountResponse)
-                .collect(Collectors.toList());
-        return new TicketComplaintCategoryDashboardResponse(responses);
+        return countByComplaintCategory(from, to);
     }
 
     private Ticket getTicketEntity(String ticketId) {
