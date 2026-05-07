@@ -1,7 +1,9 @@
 package com.example.ticketing_app.controller;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
+import com.example.ticketing_app.repository.TicketCategoryCountProjection;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -50,7 +52,7 @@ public class DashboardController {
 	}
 
 	@GetMapping("/tickets-by-complaint-category")
-	public ResponseEntity<ApiResponse<TicketComplaintCategoryDashboardResponse>> getTicketCountByComplaintCategory(
+	public ResponseEntity<ApiResponse<List<TicketCategoryCountProjection>>> getTicketCountByComplaintCategory(
 			@AuthenticationPrincipal UserPrincipal principal,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {

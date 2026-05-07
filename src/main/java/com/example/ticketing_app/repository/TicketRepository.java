@@ -6,7 +6,6 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 
@@ -14,7 +13,7 @@ import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketStatus;
 
-public interface TicketRepository extends MongoRepository<Ticket, String> {
+public interface TicketRepository extends MongoRepository<Ticket, String>, TicketCategoryAggregationRepository {
 
 	Optional<Ticket> findByTicketId(String ticketId);
 
@@ -57,38 +56,6 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 
 	@Query(value = "{ 'assignedTo.userId': ?0, 'status': { $in: ?1 } }", fields = "{ 'comments': 0, 'attachments': 0, 'statusHistory': 0, 'slaEvents': 0 }")
 	Page<Ticket> findByAssignedToUserIdAndStatusIn(String assignedToUserId, List<TicketStatus> statuses, Pageable pageable);
-
-	@Aggregation(pipeline = {
-			"{ $match: { 'category': { $ne: null } } }",
-			"{ $group: { _id: { id: '$category.id', name: '$category.name' }, count: { $sum: 1 } } }",
-			"{ $project: { _id: 0, categoryId: '$_id.id', categoryName: '$_id.name', count: 1 } }",
-			"{ $sort: { count: -1, categoryName: 1 } }"
-	})
-	List<TicketCategoryCountProjection> countByCategory();
-
-	@Aggregation(pipeline = {
-			"{ $match: { 'category': { $ne: null }, 'createdAt': { $gte: ?0, $lte: ?1 } } }",
-			"{ $group: { _id: { id: '$category.id', name: '$category.name' }, count: { $sum: 1 } } }",
-			"{ $project: { _id: 0, categoryId: '$_id.id', categoryName: '$_id.name', count: 1 } }",
-			"{ $sort: { count: -1, categoryName: 1 } }"
-	})
-	List<TicketCategoryCountProjection> countByCategoryCreatedAtBetween(LocalDateTime from, LocalDateTime to);
-
-	@Aggregation(pipeline = {
-			"{ $match: { 'category': { $ne: null }, 'createdAt': { $gte: ?0 } } }",
-			"{ $group: { _id: { id: '$category.id', name: '$category.name' }, count: { $sum: 1 } } }",
-			"{ $project: { _id: 0, categoryId: '$_id.id', categoryName: '$_id.name', count: 1 } }",
-			"{ $sort: { count: -1, categoryName: 1 } }"
-	})
-	List<TicketCategoryCountProjection> countByCategoryCreatedAtGreaterThanEqual(LocalDateTime from);
-
-	@Aggregation(pipeline = {
-			"{ $match: { 'category': { $ne: null }, 'createdAt': { $lte: ?0 } } }",
-			"{ $group: { _id: { id: '$category.id', name: '$category.name' }, count: { $sum: 1 } } }",
-			"{ $project: { _id: 0, categoryId: '$_id.id', categoryName: '$_id.name', count: 1 } }",
-			"{ $sort: { count: -1, categoryName: 1 } }"
-	})
-	List<TicketCategoryCountProjection> countByCategoryCreatedAtLessThanEqual(LocalDateTime to);
 
 	long countByStatus(TicketStatus status);
 
