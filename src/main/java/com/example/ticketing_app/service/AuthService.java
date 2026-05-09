@@ -90,7 +90,7 @@ public class AuthService {
 				refreshToken,
 				"Bearer",
 				tokenProvider.getAccessTokenExpirySeconds(),
-				new AuthUserResponse(user.getUserId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getRole()));
+				new AuthUserResponse(user.getUserId(), user.getEmail(), user.getFirstName(), user.getLastName(), user.getPhone(), user.getRole()));
 	}
 
 	private String generateUserId() {
