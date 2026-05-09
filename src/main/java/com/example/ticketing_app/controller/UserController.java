@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +21,9 @@ import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.UserCreateRequest;
 import com.example.ticketing_app.dto.UserResponse;
 import com.example.ticketing_app.dto.UserUpdateRequest;
+import com.example.ticketing_app.dto.UserProfileResponse;
 import com.example.ticketing_app.service.UserService;
+import com.example.ticketing_app.security.UserPrincipal;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -34,6 +37,21 @@ public class UserController {
 	public UserController(UserService userService) {
 		this.userService = userService;
 	}
+
+	@GetMapping("/profile")
+	public ResponseEntity<ApiResponse<UserProfileResponse>> profile(
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(ApiResponse.success("User profile fetched",
+				userService.getProfile(principal.getUserId())));
+	}
+
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<UserResponse>> update(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody UserUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("User updated",
+                userService.update(principal.getUserId(), request)));
+    }
 
 	@GetMapping
 	public ResponseEntity<ApiResponse<List<UserResponse>>> findAll() {
@@ -54,12 +72,6 @@ public class UserController {
 	public ResponseEntity<ApiResponse<UserResponse>> create(@Valid @RequestBody UserCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 				.body(ApiResponse.success("User created", userService.create(request)));
-	}
-
-	@PutMapping("/{userId}")
-	public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable String userId,
-			@Valid @RequestBody UserUpdateRequest request) {
-		return ResponseEntity.ok(ApiResponse.success("User updated", userService.update(userId, request)));
 	}
 
 	@DeleteMapping("/{userId}")

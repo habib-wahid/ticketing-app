@@ -27,6 +27,7 @@ public class User {
 	@Indexed(unique = true)
 	private String email;
 
+    private String phone;
 	private String passwordHash;
 	private String firstName;
 	private String lastName;
@@ -40,4 +41,3 @@ public class User {
 	private LocalDateTime updatedAt;
 	private Map<String, Object> preferences = new HashMap<>();
 }
-

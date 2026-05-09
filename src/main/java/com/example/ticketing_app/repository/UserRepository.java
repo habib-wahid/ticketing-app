@@ -17,6 +17,9 @@ public interface UserRepository extends MongoRepository<User, String> {
 
 	List<User> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(String firstNameQuery, String lastNameQuery);
 
+	List<User> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseAndIsActiveTrue(String firstNameQuery,
+			String lastNameQuery);
+
 	boolean existsByUserId(String userId);
 
 	boolean existsByEmail(String email);

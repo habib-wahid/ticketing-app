@@ -10,10 +10,10 @@ public record UserUpdateRequest(
 		@Size(min = 8, max = 100) String password,
 		@Size(min = 1, max = 50) String firstName,
 		@Size(min = 1, max = 50) String lastName,
+		@Size(max = 30) String phone,
 		UserRole role,
 		Boolean isActive,
 		Boolean emailVerified,
 		@Size(max = 50) String department,
 		@Size(max = 50) String managerId) {
 }
-
