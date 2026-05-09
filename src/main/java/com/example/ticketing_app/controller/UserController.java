@@ -4,8 +4,10 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +29,7 @@ import com.example.ticketing_app.security.UserPrincipal;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/users")
 @Tag(name = "Users")
@@ -75,7 +78,9 @@ public class UserController {
 	}
 
 	@DeleteMapping("/{userId}")
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String userId) {
+        log.info("Deleting user with ID: {}", userId);
 		userService.delete(userId);
 		return ResponseEntity.ok(ApiResponse.success("User deleted", null));
 	}
