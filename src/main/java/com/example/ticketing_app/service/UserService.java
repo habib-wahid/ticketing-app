@@ -1,22 +1,22 @@
 package com.example.ticketing_app.service;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
 import com.example.ticketing_app.dto.UserCreateRequest;
+import com.example.ticketing_app.dto.UserProfileResponse;
 import com.example.ticketing_app.dto.UserResponse;
 import com.example.ticketing_app.dto.UserUpdateRequest;
 import com.example.ticketing_app.entity.User;
 import com.example.ticketing_app.exception.ConflictException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -38,7 +38,7 @@ public class UserService {
 	}
 
 	public List<UserResponse> searchByName(String query) {
-		return userRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(query, query)
+		return userRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseAndIsActiveTrue(query, query)
 				.stream()
 				.map(this::toResponse)
 				.collect(Collectors.toList());
@@ -89,6 +89,9 @@ public class UserService {
 		if (StringUtils.hasText(request.lastName())) {
 			user.setLastName(request.lastName().trim());
 		}
+		if (request.phone() != null) {
+			user.setPhone(normalize(request.phone()));
+		}
 		if (request.role() != null) {
 			user.setRole(request.role());
 		}
@@ -111,11 +114,14 @@ public class UserService {
 
 	public void delete(String userId) {
 		User user = getUserEntity(userId);
-		userRepository.delete(user);
+        user.setActive(false);
+		userRepository.save(user);
 	}
 
-	public User requireExistingUser(String userId) {
-		return getUserEntity(userId);
+
+	public UserProfileResponse getProfile(String userId) {
+		User user = getUserEntity(userId);
+		return new UserProfileResponse(buildFullName(user), user.getEmail(), user.getPhone(), user.getRole());
 	}
 
 	private User getUserEntity(String userId) {
@@ -129,6 +135,7 @@ public class UserService {
 				user.getEmail(),
 				user.getFirstName(),
 				user.getLastName(),
+                user.getPhone(),
 				user.getRole(),
 				user.isActive(),
 				user.isEmailVerified(),
@@ -148,8 +155,22 @@ public class UserService {
 		return userId;
 	}
 
+	private String buildFullName(User user) {
+		String first = normalize(user.getFirstName());
+		String last = normalize(user.getLastName());
+		if (first == null && last == null) {
+			return user.getUserId();
+		}
+		if (first == null) {
+			return last;
+		}
+		if (last == null) {
+			return first;
+		}
+		return first + " " + last;
+	}
+
 	private String normalize(String value) {
 		return StringUtils.hasText(value) ? value.trim() : null;
 	}
 }
-
