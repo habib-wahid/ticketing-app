@@ -22,6 +22,7 @@ import com.example.ticketing_app.dto.TicketSlaSummary;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
+import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.ComplaintCategory;
@@ -31,7 +32,6 @@ import com.example.ticketing_app.entity.TicketAttachment;
 import com.example.ticketing_app.entity.CommentAuthor;
 import com.example.ticketing_app.entity.TicketComment;
 import com.example.ticketing_app.entity.TicketCreatedBy;
-import com.example.ticketing_app.entity.TicketFilterStatus;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketSlaEvent;
 import com.example.ticketing_app.entity.TicketStatus;
@@ -94,17 +94,25 @@ public class TicketService {
         return toSummaryPage(page);
     }
 
-    public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketFilterStatus status, Pageable pageable) {
-        Page<Ticket> page = fetchTicketPage(status,
-                () -> ticketRepository.findByCreatedByUserId(userId, pageable),
-                statuses -> ticketRepository.findByCreatedByUserIdAndStatusIn(userId, statuses, pageable));
+    public Page<TicketSummaryResponse> findByCreatedByUserId(String userId, TicketStatus status, Pageable pageable) {
+        Page<Ticket> page = status == null ? ticketRepository.findByCreatedByUserId(userId, pageable)
+                : ticketRepository.findByCreatedByUserIdAndStatusIn(userId, List.of(status), pageable);
         return toSummaryPage(page);
     }
 
-    public Page<TicketSummaryResponse> findByAssignedToUserId(String userId, TicketFilterStatus status, Pageable pageable) {
-        Page<Ticket> page = fetchTicketPage(status,
-                () -> ticketRepository.findByAssignedToUserId(userId, pageable),
-                statuses -> ticketRepository.findByAssignedToUserIdAndStatusIn(userId, statuses, pageable));
+    public Page<TicketSummaryResponse> findMyTickets(String actorUserId, TicketSearchRequest request, Pageable pageable) {
+		String targetCreatedBy = StringUtils.hasText(request.createdBy()) ? request.createdBy().trim() : actorUserId;
+		List<TicketStatus> statuses = request.status() != null ? List.of(request.status()) : null;
+		
+		Page<Ticket> page = ticketRepository.findTicketsDynamic(targetCreatedBy, request.categoryId(), request.priority(), 
+				statuses,
+				request.assignedTo(), request.startDate(), request.endDate(), pageable);
+		return toSummaryPage(page);
+	}
+
+    public Page<TicketSummaryResponse> findByAssignedToUserId(String userId, TicketStatus status, Pageable pageable) {
+        Page<Ticket> page = status == null ? ticketRepository.findByAssignedToUserId(userId, pageable)
+                : ticketRepository.findByAssignedToUserIdAndStatusIn(userId, List.of(status), pageable);
         return toSummaryPage(page);
     }
 
@@ -800,21 +808,6 @@ public class TicketService {
         return new PageImpl<>(responses, page.getPageable(), page.getTotalElements());
     }
 
-    private Page<Ticket> fetchTicketPage(TicketFilterStatus status,
-            Supplier<Page<Ticket>> noStatusSupplier,
-            Function<List<TicketStatus>, Page<Ticket>> withStatusSupplier) {
-        List<TicketStatus> statuses = null;
-        if (status == TicketFilterStatus.PENDING) {
-            statuses = List.of(TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.REOPENED);
-        } else if (status == TicketFilterStatus.RESOLVED) {
-            statuses = List.of(TicketStatus.RESOLVED, TicketStatus.CLOSED);
-        }
-
-        if (statuses == null) {
-            return noStatusSupplier.get();
-        }
-        return withStatusSupplier.apply(statuses);
-    }
 
     private ComplaintCategory resolveComplaintCategory(String complaintCategoryId) {
         String normalizedId = normalize(complaintCategoryId);
