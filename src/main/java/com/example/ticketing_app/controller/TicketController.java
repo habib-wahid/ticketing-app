@@ -1,5 +1,6 @@
 package com.example.ticketing_app.controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import jakarta.validation.Valid;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.ModelAttribute;
 
 import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.TicketAssignRequest;
@@ -31,7 +34,9 @@ import com.example.ticketing_app.dto.TicketResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
-import com.example.ticketing_app.entity.TicketFilterStatus;
+import com.example.ticketing_app.dto.TicketSearchRequest;
+import com.example.ticketing_app.entity.TicketPriority;
+import com.example.ticketing_app.entity.TicketStatus;
 import com.example.ticketing_app.security.UserPrincipal;
 import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.service.TicketService;
@@ -58,20 +63,21 @@ public class TicketController {
 		return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findAll(actor(principal), pageRequest)));
 	}
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findAllByUserId(
-            @PathVariable String userId,
-            @RequestParam(required = false) TicketFilterStatus status,
+    @GetMapping("/user")
+    public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findMyTickets(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @ModelAttribute TicketSearchRequest request,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findByCreatedByUserId(userId, status, pageRequest)));
+        return ResponseEntity.ok(ApiResponse.success("Tickets fetched",
+                ticketService.findMyTickets(principal.getUserId(), request, pageRequest)));
     }
 
     @GetMapping("/assigned/{userId}")
     public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findAllByAssignedUserId(
             @PathVariable String userId,
-            @RequestParam(required = false) TicketFilterStatus status,
+            @RequestParam(required = false) TicketStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));

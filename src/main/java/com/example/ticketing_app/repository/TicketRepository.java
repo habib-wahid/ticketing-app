@@ -13,7 +13,7 @@ import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketStatus;
 
-public interface TicketRepository extends MongoRepository<Ticket, String>, TicketCategoryAggregationRepository {
+public interface TicketRepository extends MongoRepository<Ticket, String>, TicketCustomRepository {
 
 	Optional<Ticket> findByTicketId(String ticketId);
 
