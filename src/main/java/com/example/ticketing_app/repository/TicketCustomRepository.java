@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketStatus;
+import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 
 public interface TicketCustomRepository {
 	List<TicketCategoryCountProjection> countByCategory();
@@ -22,4 +23,6 @@ public interface TicketCustomRepository {
 	Page<Ticket> findTicketsDynamic(String createdByUserId, String categoryId, TicketPriority priority,
 			List<TicketStatus> statuses, String assignedToUserId, LocalDateTime startDate, LocalDateTime endDate,
 			Pageable pageable);
+
+	List<TicketDailyStatusResponse> getDailyTicketStats(LocalDateTime from, LocalDateTime to);
 }

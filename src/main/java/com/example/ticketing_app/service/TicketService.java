@@ -24,6 +24,7 @@ import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
+import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.ComplaintCategory;
 import com.example.ticketing_app.entity.Ticket;
@@ -883,5 +884,10 @@ public class TicketService {
             return ticketRepository.countByCategoryCreatedAtLessThanEqual(to);
         }
         return ticketRepository.countByCategory();
+    }
+
+    public List<TicketDailyStatusResponse> getDailyTicketStats(ActorContext actor, LocalDateTime from, LocalDateTime to) {
+        validateDateRange(from, to);
+        return ticketRepository.getDailyTicketStats(from, to);
     }
 }

@@ -41,3 +41,18 @@ Content-Type: application/json
   "assignedByUserId": "usr_3741f137",
   "reason": "Routing to agent"
 }
+
+### User Login
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "password"
+}
+
+### Get dashboard daily ticket stats (reported and solved)
+GET http://localhost:8080/api/dashboard/daily-stats?from=2026-05-01T00:00:00&to=2026-06-03T23:59:59
+Content-Type: application/json
+Authorization: Bearer <YOUR_TOKEN_HERE>
+}

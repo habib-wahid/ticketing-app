@@ -2,6 +2,9 @@ package com.example.ticketing_app.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -19,6 +22,7 @@ import org.springframework.util.StringUtils;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketStatus;
+import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 
 @Repository
 public class TicketRepositoryImpl implements TicketCustomRepository {
@@ -123,5 +127,46 @@ public class TicketRepositoryImpl implements TicketCustomRepository {
 
 		return new PageImpl<>(tickets, pageable, total);
 	}
-}
 
+	@Override
+	public List<TicketDailyStatusResponse> getDailyTicketStats(LocalDateTime from, LocalDateTime to) {
+		Aggregation reportedAggregation = Aggregation.newAggregation(
+				Aggregation.match(Criteria.where("createdAt").gte(from).lte(to)),
+				Aggregation.project()
+						.and("createdAt").dateAsFormattedString("%Y-%m-%d").as("date"),
+				Aggregation.group("date").count().as("count"),
+				Aggregation.project("count").and("_id").as("date")
+		);
+
+		Aggregation solvedAggregation = Aggregation.newAggregation(
+				Aggregation.match(Criteria.where("resolvedAt").gte(from).lte(to)),
+				Aggregation.project()
+						.and("resolvedAt").dateAsFormattedString("%Y-%m-%d").as("date"),
+				Aggregation.group("date").count().as("count"),
+				Aggregation.project("count").and("_id").as("date")
+		);
+
+		List<TicketDailyCountAggregate> reportedRaw = mongoTemplate.aggregate(reportedAggregation,
+				mongoTemplate.getCollectionName(Ticket.class), TicketDailyCountAggregate.class).getMappedResults();
+		List<TicketDailyCountAggregate> solvedRaw = mongoTemplate.aggregate(solvedAggregation,
+				mongoTemplate.getCollectionName(Ticket.class), TicketDailyCountAggregate.class).getMappedResults();
+
+		Map<String, Long> reportedMap = reportedRaw.stream()
+				.collect(Collectors.toMap(TicketDailyCountAggregate::getDate, TicketDailyCountAggregate::getCount));
+		Map<String, Long> solvedMap = solvedRaw.stream()
+				.collect(Collectors.toMap(TicketDailyCountAggregate::getDate, TicketDailyCountAggregate::getCount));
+
+		Map<String, TicketDailyStatusResponse> combined = new TreeMap<>();
+		reportedMap.forEach((date, count) -> combined.put(date, new TicketDailyStatusResponse(date, count, 0L)));
+		solvedMap.forEach((date, count) -> {
+			TicketDailyStatusResponse existing = combined.get(date);
+			if (existing != null) {
+				combined.put(date, new TicketDailyStatusResponse(date, existing.reportedCount(), count));
+			} else {
+				combined.put(date, new TicketDailyStatusResponse(date, 0L, count));
+			}
+		});
+
+		return combined.values().stream().collect(Collectors.toList());
+	}
+}

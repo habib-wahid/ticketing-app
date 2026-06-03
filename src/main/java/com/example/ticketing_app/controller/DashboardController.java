@@ -16,6 +16,7 @@ import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.TicketDashboardResponse;
 import com.example.ticketing_app.dto.TicketPriorityDashboardResponse;
 import com.example.ticketing_app.dto.TicketComplaintCategoryDashboardResponse;
+import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 import com.example.ticketing_app.security.UserPrincipal;
 import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.service.TicketService;
@@ -58,6 +59,15 @@ public class DashboardController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 		return ResponseEntity.ok(ApiResponse.success("Ticket complaint category dashboard fetched",
 				ticketService.getDashboardCountsByComplaintCategory(actor(principal), from, to)));
+	}
+
+	@GetMapping("/daily-stats")
+	public ResponseEntity<ApiResponse<List<TicketDailyStatusResponse>>> getDailyTicketStats(
+			@AuthenticationPrincipal UserPrincipal principal,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+		return ResponseEntity.ok(ApiResponse.success("Daily ticket stats fetched",
+				ticketService.getDailyTicketStats(actor(principal), from, to)));
 	}
 
 	private ActorContext actor(UserPrincipal principal) {
