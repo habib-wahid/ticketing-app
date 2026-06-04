@@ -422,7 +422,14 @@ public class TicketService {
     private Ticket getTicketEntity(String ticketId, ActorContext actor) {
         Ticket ticket = getTicketEntity(ticketId);
         ensureAccess(ticket, actor);
+        ensureTicketInDeletableState(ticket);
         return ticket;
+    }
+
+    private void ensureTicketInDeletableState(Ticket ticket) {
+        if (!(ticket.getStatus() == TicketStatus.ASSIGNED || ticket.getStatus() == TicketStatus.NEW)) {
+            throw new BadRequestException(String.format("Ticket can not be deleted from status: %s", ticket.getStatus()));
+        }
     }
 
     private void ensureAccess(Ticket ticket, ActorContext actor) {
