@@ -19,9 +19,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.example.ticketing_app.dto.ApiResponse;
 import com.example.ticketing_app.dto.TicketAssignRequest;
@@ -95,11 +98,20 @@ public class TicketController {
 		return ResponseEntity.ok(ApiResponse.success("Ticket comments fetched", ticketService.findComments(ticketId)));
 	}
 
-	@PostMapping
+	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<ApiResponse<TicketResponse>> create(@Valid @RequestBody TicketCreateRequest request,
 			@AuthenticationPrincipal UserPrincipal principal) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ApiResponse.success("Ticket created", ticketService.create(request, actor(principal))));
+				.body(ApiResponse.success("Ticket created", ticketService.create(request, actor(principal), null)));
+	}
+
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<ApiResponse<TicketResponse>> createWithAttachment(
+			@Valid @RequestPart("ticket") TicketCreateRequest request,
+			@RequestPart(value = "file", required = false) MultipartFile file,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.success("Ticket created", ticketService.create(request, actor(principal), file)));
 	}
 
 	@PostMapping("/{ticketId}/comments")

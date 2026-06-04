@@ -23,7 +23,7 @@ import com.example.ticketing_app.security.RestAccessDeniedHandler;
 import com.example.ticketing_app.security.RestAuthenticationEntryPoint;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, FileStorageProperties.class})
 @EnableMethodSecurity
 public class SecurityConfig {
 
@@ -57,6 +57,7 @@ public class SecurityConfig {
 				.authenticationProvider(authenticationProvider())
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/api/auth/**", "/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
 //						.requestMatchers("/api/users/**").hasRole("ADMIN")
 //						.requestMatchers("/api/tickets/user/**", "/api/tickets/assigned/**").hasRole("ADMIN")
 //						.requestMatchers(HttpMethod.POST, "/api/tickets/*/assign").hasRole("ADMIN")

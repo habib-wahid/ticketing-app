@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.example.ticketing_app.dto.ApiResponse;
 
@@ -23,6 +24,11 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(ConflictException.class)
 	public ResponseEntity<ApiResponse<Object>> handleConflict(ConflictException ex, HttpServletRequest request) {
 		return build(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ApiResponse<Object>> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+		return build(HttpStatus.BAD_REQUEST, "File size must not exceed 10 MB", request.getRequestURI());
 	}
 
 	@ExceptionHandler({BadRequestException.class, MethodArgumentNotValidException.class, MethodArgumentTypeMismatchException.class})

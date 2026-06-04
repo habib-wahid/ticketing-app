@@ -13,6 +13,7 @@ public class TicketAttachment {
 
 	private String attachmentId;
 	private String filename;
+	private String filePath;
 	private String s3Url;
 	private long fileSize;
 	private String mimeType;

@@ -52,6 +52,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -76,13 +77,15 @@ public class TicketService {
     private final UserRepository userRepository;
     private final SlaPolicyService slaPolicyService;
     private final ComplaintCategoryRepository complaintCategoryRepository;
+    private final FileStorageService fileStorageService;
 
     public TicketService(TicketRepository ticketRepository, UserRepository userRepository, SlaPolicyService slaPolicyService,
-            ComplaintCategoryRepository complaintCategoryRepository) {
+            ComplaintCategoryRepository complaintCategoryRepository, FileStorageService fileStorageService) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
         this.slaPolicyService = slaPolicyService;
         this.complaintCategoryRepository = complaintCategoryRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     public Page<TicketSummaryResponse> findAll(ActorContext actor, Pageable pageable) {
@@ -125,7 +128,7 @@ public class TicketService {
         return toResponse(getTicketEntity(ticketId, actor));
     }
 
-    public TicketResponse create(TicketCreateRequest request, ActorContext actor) {
+    public TicketResponse create(TicketCreateRequest request, ActorContext actor, MultipartFile file) {
         String createdByUserId = actor.isAdmin() && StringUtils.hasText(request.createdByUserId())
                 ? request.createdByUserId().trim()
                 : actor.userId();
@@ -182,6 +185,10 @@ public class TicketService {
         ticket.setCustomFields(request.customFields() == null ? new HashMap<>() : new HashMap<>(request.customFields()));
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
+
+        if (file != null && !file.isEmpty()) {
+            ticket.getAttachments().add(buildAttachment(ticket.getTicketId(), file, createdBy.getUserId(), now));
+        }
 
         return toResponse(ticketRepository.save(ticket));
     }
@@ -749,11 +756,30 @@ public class TicketService {
         return new TicketAttachmentResponse(
                 attachment.getAttachmentId(),
                 attachment.getFilename(),
+                attachment.getFilePath(),
                 attachment.getS3Url(),
                 attachment.getFileSize(),
                 attachment.getMimeType(),
                 attachment.getUploadedBy(),
                 attachment.getUploadedAt());
+    }
+
+    private TicketAttachment buildAttachment(String ticketId, MultipartFile file, String uploadedBy, LocalDateTime uploadedAt) {
+        FileStorageService.StoredFile storedFile = fileStorageService.storeTicketAttachment(ticketId, file);
+        TicketAttachment attachment = new TicketAttachment();
+        attachment.setAttachmentId(generateAttachmentId());
+        attachment.setFilename(storedFile.originalFilename());
+        attachment.setFilePath(storedFile.accessiblePath());
+        attachment.setS3Url(storedFile.accessiblePath());
+        attachment.setFileSize(storedFile.fileSize());
+        attachment.setMimeType(storedFile.mimeType());
+        attachment.setUploadedBy(uploadedBy);
+        attachment.setUploadedAt(uploadedAt);
+        return attachment;
+    }
+
+    private String generateAttachmentId() {
+        return "att_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 
     private List<TicketStatusHistoryResponse> toStatusHistoryResponses(List<TicketStatusHistory> history) {
