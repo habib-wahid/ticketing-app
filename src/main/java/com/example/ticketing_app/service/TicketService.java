@@ -324,6 +324,7 @@ public class TicketService {
 
     public void delete(String ticketId, ActorContext actor) {
         Ticket ticket = getTicketEntity(ticketId, actor);
+        ensureTicketInDeletableState(ticket);
         ticketRepository.delete(ticket);
     }
 
@@ -422,7 +423,6 @@ public class TicketService {
     private Ticket getTicketEntity(String ticketId, ActorContext actor) {
         Ticket ticket = getTicketEntity(ticketId);
         ensureAccess(ticket, actor);
-        ensureTicketInDeletableState(ticket);
         return ticket;
     }
 
