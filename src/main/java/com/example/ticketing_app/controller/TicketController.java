@@ -108,10 +108,10 @@ public class TicketController {
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<ApiResponse<TicketResponse>> createWithAttachment(
 			@Valid @RequestPart("ticket") TicketCreateRequest request,
-			@RequestPart(value = "file", required = false) MultipartFile file,
+			@RequestPart(value = "files", required = false) List<MultipartFile> files,
 			@AuthenticationPrincipal UserPrincipal principal) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ApiResponse.success("Ticket created", ticketService.create(request, actor(principal), file)));
+				.body(ApiResponse.success("Ticket created", ticketService.create(request, actor(principal), files)));
 	}
 
 	@PostMapping("/{ticketId}/comments")

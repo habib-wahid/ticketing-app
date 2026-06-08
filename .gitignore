@@ -39,3 +39,6 @@ out/
 ### docs
 /docs
 .DS_Store
+
+### Upload directory
+/uploads

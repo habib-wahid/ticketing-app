@@ -128,7 +128,7 @@ public class TicketService {
         return toResponse(getTicketEntity(ticketId, actor));
     }
 
-    public TicketResponse create(TicketCreateRequest request, ActorContext actor, MultipartFile file) {
+    public TicketResponse create(TicketCreateRequest request, ActorContext actor, List<MultipartFile> files) {
         String createdByUserId = actor.isAdmin() && StringUtils.hasText(request.createdByUserId())
                 ? request.createdByUserId().trim()
                 : actor.userId();
@@ -186,8 +186,12 @@ public class TicketService {
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
 
-        if (file != null && !file.isEmpty()) {
-            ticket.getAttachments().add(buildAttachment(ticket.getTicketId(), file, createdBy.getUserId(), now));
+        if (files != null) {
+            for (MultipartFile file : files) {
+                if (file != null && !file.isEmpty()) {
+                    ticket.getAttachments().add(buildAttachment(ticket.getTicketId(), file, createdBy.getUserId(), now));
+                }
+            }
         }
 
         return toResponse(ticketRepository.save(ticket));
