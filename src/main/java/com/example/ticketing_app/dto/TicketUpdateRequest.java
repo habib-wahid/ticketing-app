@@ -16,5 +16,6 @@ public record TicketUpdateRequest(
 		TicketStatus status,
 		String assignedToUserId,
 		@Size(max = 5) List<@Size(max = 20) String> tags,
-		Map<String, Object> customFields) {
+		Map<String, Object> customFields,
+		List<String> removeAttachmentIds) {
 }
