@@ -74,6 +74,21 @@ public class FileStorageService {
 		return new StoredFile(originalFilename, storedFilename, accessiblePath, file.getSize(), mimeType);
 	}
 
+	public void deleteTicketAttachment(String ticketId, String storedFilename) {
+		if (!StringUtils.hasText(storedFilename)) {
+			return;
+		}
+		try {
+			Path filePath = uploadRoot.resolve("tickets").resolve(ticketId).resolve(storedFilename).normalize();
+			if (!filePath.startsWith(uploadRoot)) {
+				throw new BadRequestException("Invalid file path");
+			}
+			Files.deleteIfExists(filePath);
+		} catch (IOException ex) {
+			throw new BadRequestException("Failed to delete file: " + ex.getMessage());
+		}
+	}
+
 	public Path resolveTicketFile(String ticketId, String filename) {
 		if (!StringUtils.hasText(ticketId) || !StringUtils.hasText(filename) || filename.contains("..")) {
 			throw new BadRequestException("Invalid file request");

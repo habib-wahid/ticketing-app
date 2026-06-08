@@ -59,8 +59,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -128,7 +130,7 @@ public class TicketService {
         return toResponse(getTicketEntity(ticketId, actor));
     }
 
-    public TicketResponse create(TicketCreateRequest request, ActorContext actor, MultipartFile file) {
+    public TicketResponse create(TicketCreateRequest request, ActorContext actor, List<MultipartFile> files) {
         String createdByUserId = actor.isAdmin() && StringUtils.hasText(request.createdByUserId())
                 ? request.createdByUserId().trim()
                 : actor.userId();
@@ -186,14 +188,22 @@ public class TicketService {
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
 
-        if (file != null && !file.isEmpty()) {
-            ticket.getAttachments().add(buildAttachment(ticket.getTicketId(), file, createdBy.getUserId(), now));
+        if (files != null) {
+            for (MultipartFile file : files) {
+                if (file != null && !file.isEmpty()) {
+                    ticket.getAttachments().add(buildAttachment(ticket.getTicketId(), file, createdBy.getUserId(), now));
+                }
+            }
         }
 
         return toResponse(ticketRepository.save(ticket));
     }
 
     public TicketResponse update(String ticketId, TicketUpdateRequest request, ActorContext actor) {
+        return update(ticketId, request, actor, null);
+    }
+
+    public TicketResponse update(String ticketId, TicketUpdateRequest request, ActorContext actor, List<MultipartFile> files) {
         Ticket ticket = getTicketEntity(ticketId, actor);
         if (!actor.isAdmin() && (request.assignedToUserId() != null || request.status() != null)) {
             throw new ForbiddenException("Only admins can change assignee or status");
@@ -256,8 +266,36 @@ public class TicketService {
             ticket.setCustomFields(new HashMap<>(request.customFields()));
         }
 
+        if (request.removeAttachmentIds() != null && !request.removeAttachmentIds().isEmpty()) {
+            Set<String> toRemove = new HashSet<>(request.removeAttachmentIds());
+            ticket.getAttachments().removeIf(att -> {
+                if (toRemove.contains(att.getAttachmentId())) {
+                    fileStorageService.deleteTicketAttachment(ticketId, extractStoredFilename(att));
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        if (files != null) {
+            for (MultipartFile file : files) {
+                if (file != null && !file.isEmpty()) {
+                    ticket.getAttachments().add(buildAttachment(ticketId, file, actor.userId(), now));
+                }
+            }
+        }
+
         ticket.setUpdatedAt(now);
         return toResponse(ticketRepository.save(ticket));
+    }
+
+    private String extractStoredFilename(TicketAttachment att) {
+        String path = att.getFilePath() != null ? att.getFilePath() : att.getS3Url();
+        if (path == null) {
+            return null;
+        }
+        int idx = path.lastIndexOf('/');
+        return idx >= 0 ? path.substring(idx + 1) : path;
     }
 
     public List<TicketCommentResponse> findComments(String ticketId) {
