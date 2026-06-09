@@ -1,36 +1,34 @@
 package com.example.ticketing_app.service;
 
-import com.example.ticketing_app.dto.TicketAssignRequest;
+import com.example.ticketing_app.dto.CommentAuthorResponse;
 import com.example.ticketing_app.dto.ComplaintCategorySummaryResponse;
-import com.example.ticketing_app.service.ActorContext;
+import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketAssignedToResponse;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
-import com.example.ticketing_app.dto.CommentAuthorResponse;
+import com.example.ticketing_app.dto.TicketCategoryCountResponse;
 import com.example.ticketing_app.dto.TicketCommentCreateRequest;
 import com.example.ticketing_app.dto.TicketCommentDeleteRequest;
 import com.example.ticketing_app.dto.TicketCommentResponse;
 import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketCreatedByResponse;
+import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 import com.example.ticketing_app.dto.TicketDashboardResponse;
-import com.example.ticketing_app.dto.TicketComplaintCategoryDashboardResponse;
-import com.example.ticketing_app.dto.TicketCategoryCountResponse;
 import com.example.ticketing_app.dto.TicketPriorityDashboardResponse;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
-import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
-import com.example.ticketing_app.dto.TicketDailyStatusResponse;
-import com.example.ticketing_app.entity.SlaPolicy;
+import com.example.ticketing_app.entity.CommentAuthor;
 import com.example.ticketing_app.entity.ComplaintCategory;
+import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketAssignedTo;
 import com.example.ticketing_app.entity.TicketAttachment;
-import com.example.ticketing_app.entity.CommentAuthor;
 import com.example.ticketing_app.entity.TicketComment;
 import com.example.ticketing_app.entity.TicketCreatedBy;
 import com.example.ticketing_app.entity.TicketPriority;
@@ -42,10 +40,10 @@ import com.example.ticketing_app.entity.UserRole;
 import com.example.ticketing_app.exception.BadRequestException;
 import com.example.ticketing_app.exception.ForbiddenException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
-import com.example.ticketing_app.repository.TicketRepository;
-import com.example.ticketing_app.repository.UserRepository;
 import com.example.ticketing_app.repository.ComplaintCategoryRepository;
 import com.example.ticketing_app.repository.TicketCategoryCountProjection;
+import com.example.ticketing_app.repository.TicketRepository;
+import com.example.ticketing_app.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -64,8 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -697,9 +693,9 @@ public class TicketService {
 
     private void validateCommentAccess(User actor, Ticket ticket) {
         TicketCreatedBy createdBy = ticket.getCreatedBy();
-        if (actor.getRole() == UserRole.CUSTOMER && (createdBy == null
-                || !actor.getUserId().equals(createdBy.getUserId()))) {
-            throw new BadRequestException("Customers can only comment on their own tickets");
+        if (createdBy == null
+                || !actor.getUserId().equals(createdBy.getUserId())) {
+            throw new BadRequestException("You are not allowed to change this comment");
         }
     }
 
