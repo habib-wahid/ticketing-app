@@ -20,7 +20,7 @@ public interface TicketCustomRepository {
 
 	List<TicketCategoryCountProjection> countByCategoryCreatedAtLessThanEqual(LocalDateTime to);
 
-	Page<Ticket> findTicketsDynamic(String createdByUserId, String categoryId, TicketPriority priority,
+	Page<Ticket> findTicketsDynamic(String createdByUserId, String title, String categoryId, TicketPriority priority,
 			List<TicketStatus> statuses, String assignedToUserId, LocalDateTime startDate, LocalDateTime endDate,
 			Pageable pageable);
 

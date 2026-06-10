@@ -1,9 +1,11 @@
 package com.example.ticketing_app.repository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -60,6 +62,10 @@ public class TicketRepositoryImpl implements TicketCustomRepository {
 		return aggregateByCategory(criteria);
 	}
 
+	private String escapeRegex(String value) {
+		return value.replaceAll("([\\\\.+*?\\[\\](){}^$|])", "\\\\$1");
+	}
+
 	private List<TicketCategoryCountProjection> aggregateByCategory(Criteria criteria) {
 		Aggregation aggregation = Aggregation.newAggregation(
 				Aggregation.match(criteria),
@@ -82,40 +88,51 @@ public class TicketRepositoryImpl implements TicketCustomRepository {
 	}
 
 	@Override
-	public Page<Ticket> findTicketsDynamic(String createdByUserId, String categoryId, TicketPriority priority,
+	public Page<Ticket> findTicketsDynamic(String createdByUserId, String title, String categoryId, TicketPriority priority,
 			List<TicketStatus> statuses, String assignedToUserId, LocalDateTime startDate, LocalDateTime endDate,
 			Pageable pageable) {
 
-		Criteria criteria = new Criteria();
+		List<Criteria> filters = new ArrayList<>();
 
 		if (StringUtils.hasText(createdByUserId)) {
-			criteria.and("createdBy.userId").is(createdByUserId);
+			filters.add(Criteria.where("createdBy.userId").is(createdByUserId));
 		}
-		if (StringUtils.hasText(categoryId)) {
-			criteria.orOperator(
+
+		if (StringUtils.hasText(title)) {
+			// SQL LIKE '%title%' — substring match, case-insensitive
+			String term = escapeRegex(title.trim());
+			filters.add(Criteria.where("title").regex(term, "i"));
+		}
+
+		if (StringUtils.hasText(categoryId) && !"all".equalsIgnoreCase(categoryId)) {
+			filters.add(new Criteria().orOperator(
 					Criteria.where("category.id").is(categoryId),
-					Criteria.where("category._id").is(categoryId)
-			);
+					Criteria.where("category._id").is(categoryId)));
 		}
 		if (priority != null) {
-			criteria.and("priority").is(priority);
+			filters.add(Criteria.where("priority").is(priority));
 		}
 		if (statuses != null && !statuses.isEmpty()) {
-			criteria.and("status").in(statuses);
+			filters.add(Criteria.where("status").in(statuses));
 		}
 		if (StringUtils.hasText(assignedToUserId)) {
-			criteria.and("assignedTo.userId").is(assignedToUserId);
+			filters.add(Criteria.where("assignedTo.userId").is(assignedToUserId));
 		}
+
 		if (startDate != null || endDate != null) {
 			Criteria dateCriteria = Criteria.where("createdAt");
 			if (startDate != null) {
-				dateCriteria.gte(startDate);
+				dateCriteria = dateCriteria.gte(startDate);
 			}
 			if (endDate != null) {
-				dateCriteria.lte(endDate);
+				dateCriteria = dateCriteria.lte(endDate);
 			}
-			criteria.andOperator(dateCriteria);
+			filters.add(dateCriteria);
 		}
+
+		Criteria criteria = filters.isEmpty()
+				? new Criteria()
+				: new Criteria().andOperator(filters.toArray(Criteria[]::new));
 
 		Query query = new Query(criteria);
 		query.fields().exclude("comments").exclude("attachments").exclude("statusHistory").exclude("slaEvents");

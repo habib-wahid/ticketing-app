@@ -68,7 +68,7 @@ public class TicketController {
             @RequestParam(defaultValue = "10") int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return ResponseEntity.ok(ApiResponse.success("Tickets fetched",
-                ticketService.findMyTickets(principal.getUserId(), request, pageRequest)));
+                ticketService.findMyTickets(principal.getUserId(), request.title(), request, pageRequest)));
     }
 
     @GetMapping("/assigned/{userId}")

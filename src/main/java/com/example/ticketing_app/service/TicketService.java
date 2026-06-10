@@ -102,11 +102,13 @@ public class TicketService {
         return toSummaryPage(page);
     }
 
-    public Page<TicketSummaryResponse> findMyTickets(String actorUserId, TicketSearchRequest request, Pageable pageable) {
+    public Page<TicketSummaryResponse> findMyTickets(String actorUserId, String title, TicketSearchRequest request,
+            Pageable pageable) {
 		List<TicketStatus> statuses = request.status() != null ? List.of(request.status()) : null;
-		
-		Page<Ticket> page = ticketRepository.findTicketsDynamic(actorUserId, request.categoryId(), request.priority(),
-				statuses, request.assignedTo(), request.startDate(), request.endDate(), pageable);
+		String titleFilter = StringUtils.hasText(title) ? title : request.title();
+
+		Page<Ticket> page = ticketRepository.findTicketsDynamic(actorUserId, titleFilter, request.categoryId(),
+				request.priority(), statuses, request.assignedTo(), request.startDate(), request.endDate(), pageable);
 
 		return toSummaryPage(page);
 	}
