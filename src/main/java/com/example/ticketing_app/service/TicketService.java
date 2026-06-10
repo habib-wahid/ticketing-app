@@ -103,12 +103,11 @@ public class TicketService {
     }
 
     public Page<TicketSummaryResponse> findMyTickets(String actorUserId, TicketSearchRequest request, Pageable pageable) {
-		String targetCreatedBy = StringUtils.hasText(request.createdBy()) ? request.createdBy().trim() : actorUserId;
 		List<TicketStatus> statuses = request.status() != null ? List.of(request.status()) : null;
 		
-		Page<Ticket> page = ticketRepository.findTicketsDynamic(targetCreatedBy, request.categoryId(), request.priority(), 
-				statuses,
-				request.assignedTo(), request.startDate(), request.endDate(), pageable);
+		Page<Ticket> page = ticketRepository.findTicketsDynamic(actorUserId, request.categoryId(), request.priority(),
+				statuses, request.assignedTo(), request.startDate(), request.endDate(), pageable);
+
 		return toSummaryPage(page);
 	}
 
