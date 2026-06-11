@@ -8,6 +8,7 @@ import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketStatus;
 
 public record TicketSearchRequest(
+		String title,
 		String categoryId,
 		TicketPriority priority,
 		TicketStatus status,
