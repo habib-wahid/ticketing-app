@@ -6,5 +6,13 @@ public record ActorContext(String userId, UserRole role) {
 	public boolean isAdmin() {
 		return role == UserRole.ADMIN;
 	}
+
+    public boolean isAgent() {
+        return role == UserRole.AGENT;
+    }
+
+    public boolean isCustomer() {
+        return role == UserRole.CUSTOMER;
+    }
 }
 

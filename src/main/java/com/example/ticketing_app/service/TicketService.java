@@ -16,6 +16,7 @@ import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 import com.example.ticketing_app.dto.TicketDashboardResponse;
 import com.example.ticketing_app.dto.TicketPriorityDashboardResponse;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.AssignedTicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
@@ -113,9 +114,14 @@ public class TicketService {
 		return toSummaryPage(page);
 	}
 
-    public Page<TicketSummaryResponse> findByAssignedToUserId(String userId, TicketStatus status, Pageable pageable) {
-        Page<Ticket> page = status == null ? ticketRepository.findByAssignedToUserId(userId, pageable)
-                : ticketRepository.findByAssignedToUserIdAndStatusIn(userId, List.of(status), pageable);
+    public Page<TicketSummaryResponse> findMyAssignedTickets(String actorUserId, String title,
+            AssignedTicketSearchRequest request, Pageable pageable) {
+        List<TicketStatus> statuses = request.status() != null ? List.of(request.status()) : null;
+        String titleFilter = StringUtils.hasText(title) ? title : request.title();
+
+        Page<Ticket> page = ticketRepository.findAssignedTicketsDynamic(actorUserId, titleFilter, request.categoryId(),
+                request.priority(), statuses, request.createdBy(), request.startDate(), request.endDate(), pageable);
+
         return toSummaryPage(page);
     }
 
@@ -202,7 +208,7 @@ public class TicketService {
 
     public TicketResponse update(String ticketId, TicketUpdateRequest request, ActorContext actor, List<MultipartFile> files) {
         Ticket ticket = getTicketEntity(ticketId, actor);
-        if (!actor.isAdmin() && (request.assignedToUserId() != null || request.status() != null)) {
+        if (actor.isCustomer() && (request.assignedToUserId() != null || request.status() != null)) {
             throw new ForbiddenException("Only admins can change assignee or status");
         }
         LocalDateTime now = LocalDateTime.now();
@@ -478,10 +484,17 @@ public class TicketService {
         if (actor.isAdmin()) {
             return;
         }
+
         TicketCreatedBy createdBy = ticket.getCreatedBy();
-        if (createdBy == null || !actor.userId().equals(createdBy.getUserId())) {
-            throw new ForbiddenException("You can only access your own tickets");
+
+        if (createdBy == null || actor.userId().equals(createdBy.getUserId())) {
+            return;
         }
+        if (ticket.getAssignedTo() != null && actor.userId().equals(ticket.getAssignedTo().getUserId())) {
+            return;
+        }
+
+        throw new ForbiddenException("You can only access your own tickets");
     }
 
     private TicketResponse toResponse(Ticket ticket) {
