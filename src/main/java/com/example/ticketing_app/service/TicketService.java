@@ -16,6 +16,7 @@ import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 import com.example.ticketing_app.dto.TicketDashboardResponse;
 import com.example.ticketing_app.dto.TicketPriorityDashboardResponse;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.AssignedTicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
 import com.example.ticketing_app.dto.TicketSlaSummary;
@@ -113,9 +114,14 @@ public class TicketService {
 		return toSummaryPage(page);
 	}
 
-    public Page<TicketSummaryResponse> findByAssignedToUserId(String userId, TicketStatus status, Pageable pageable) {
-        Page<Ticket> page = status == null ? ticketRepository.findByAssignedToUserId(userId, pageable)
-                : ticketRepository.findByAssignedToUserIdAndStatusIn(userId, List.of(status), pageable);
+    public Page<TicketSummaryResponse> findMyAssignedTickets(String actorUserId, String title,
+            AssignedTicketSearchRequest request, Pageable pageable) {
+        List<TicketStatus> statuses = request.status() != null ? List.of(request.status()) : null;
+        String titleFilter = StringUtils.hasText(title) ? title : request.title();
+
+        Page<Ticket> page = ticketRepository.findAssignedTicketsDynamic(actorUserId, titleFilter, request.categoryId(),
+                request.priority(), statuses, request.createdBy(), request.startDate(), request.endDate(), pageable);
+
         return toSummaryPage(page);
     }
 

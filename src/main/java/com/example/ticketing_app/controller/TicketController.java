@@ -8,11 +8,11 @@ import com.example.ticketing_app.dto.TicketCommentResponse;
 import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.AssignedTicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
-import com.example.ticketing_app.entity.TicketStatus;
 import com.example.ticketing_app.security.UserPrincipal;
 import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.service.TicketService;
@@ -71,14 +71,15 @@ public class TicketController {
                 ticketService.findMyTickets(principal.getUserId(), request.title(), request, pageRequest)));
     }
 
-    @GetMapping("/assigned/{userId}")
-    public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findAllByAssignedUserId(
-            @PathVariable String userId,
-            @RequestParam(required = false) TicketStatus status,
+    @GetMapping("/assigned")
+    public ResponseEntity<ApiResponse<Page<TicketSummaryResponse>>> findMyAssignedTickets(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @ModelAttribute AssignedTicketSearchRequest request,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(ApiResponse.success("Tickets fetched", ticketService.findByAssignedToUserId(userId, status, pageRequest)));
+        return ResponseEntity.ok(ApiResponse.success("Tickets fetched",
+                ticketService.findMyAssignedTickets(principal.getUserId(), request.title(), request, pageRequest)));
     }
 
 	@GetMapping("/{ticketId}")

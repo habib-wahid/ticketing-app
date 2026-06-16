@@ -24,5 +24,9 @@ public interface TicketCustomRepository {
 			List<TicketStatus> statuses, String assignedToUserId, LocalDateTime startDate, LocalDateTime endDate,
 			Pageable pageable);
 
+	Page<Ticket> findAssignedTicketsDynamic(String assignedToUserId, String title, String categoryId,
+			TicketPriority priority, List<TicketStatus> statuses, String createdByUserId, LocalDateTime startDate,
+			LocalDateTime endDate, Pageable pageable);
+
 	List<TicketDailyStatusResponse> getDailyTicketStats(LocalDateTime from, LocalDateTime to);
 }

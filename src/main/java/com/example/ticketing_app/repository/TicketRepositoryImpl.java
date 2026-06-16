@@ -146,6 +146,63 @@ public class TicketRepositoryImpl implements TicketCustomRepository {
 	}
 
 	@Override
+	public Page<Ticket> findAssignedTicketsDynamic(String assignedToUserId, String title, String categoryId,
+			TicketPriority priority, List<TicketStatus> statuses, String createdByUserId, LocalDateTime startDate,
+			LocalDateTime endDate, Pageable pageable) {
+
+		List<Criteria> filters = new ArrayList<>();
+
+		if (StringUtils.hasText(assignedToUserId)) {
+			filters.add(Criteria.where("assignedTo.userId").is(assignedToUserId));
+		}
+
+		if (StringUtils.hasText(title)) {
+			String term = escapeRegex(title.trim());
+			filters.add(Criteria.where("title").regex(term, "i"));
+		}
+
+		if (StringUtils.hasText(categoryId) && !"all".equalsIgnoreCase(categoryId)) {
+			filters.add(new Criteria().orOperator(
+					Criteria.where("category.id").is(categoryId),
+					Criteria.where("category._id").is(categoryId)));
+		}
+		if (priority != null) {
+			filters.add(Criteria.where("priority").is(priority));
+		}
+		if (statuses != null && !statuses.isEmpty()) {
+			filters.add(Criteria.where("status").in(statuses));
+		}
+		if (StringUtils.hasText(createdByUserId)) {
+			filters.add(Criteria.where("createdBy.userId").is(createdByUserId));
+		}
+
+		if (startDate != null || endDate != null) {
+			Criteria dateCriteria = Criteria.where("createdAt");
+			if (startDate != null) {
+				dateCriteria = dateCriteria.gte(startDate);
+			}
+			if (endDate != null) {
+				dateCriteria = dateCriteria.lte(endDate);
+			}
+			filters.add(dateCriteria);
+		}
+
+		Criteria criteria = filters.isEmpty()
+				? new Criteria()
+				: new Criteria().andOperator(filters.toArray(Criteria[]::new));
+
+		Query query = new Query(criteria);
+		query.fields().exclude("comments").exclude("attachments").exclude("statusHistory").exclude("slaEvents");
+
+		long total = mongoTemplate.count(query, Ticket.class);
+
+		query.with(pageable);
+		List<Ticket> tickets = mongoTemplate.find(query, Ticket.class);
+
+		return new PageImpl<>(tickets, pageable, total);
+	}
+
+	@Override
 	public List<TicketDailyStatusResponse> getDailyTicketStats(LocalDateTime from, LocalDateTime to) {
 		Aggregation reportedAggregation = Aggregation.newAggregation(
 				Aggregation.match(Criteria.where("createdAt").gte(from).lte(to)),
