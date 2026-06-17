@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -15,6 +17,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Document(collection = "tickets")
+@CompoundIndexes({
+		// Serves "my created tickets" (prefix) and "my resolved tickets" (createdBy.userId + status)
+		@CompoundIndex(name = "idx_createdBy_status", def = "{'createdBy.userId': 1, 'status': 1}"),
+		// Serves "tickets assigned to me"
+		@CompoundIndex(name = "idx_assignedTo_userId", def = "{'assignedTo.userId': 1}")
+})
 @Getter
 @Setter
 @NoArgsConstructor

@@ -84,4 +84,8 @@ public interface TicketRepository extends MongoRepository<Ticket, String>, Ticke
 	long countByCreatedByUserIdAndStatus(String createdByUserId, TicketStatus status);
 
 	long countByCreatedByUserIdAndStatusIn(String createdByUserId, List<TicketStatus> statuses);
+
+	long countByCreatedByUserId(String createdByUserId);
+
+	long countByAssignedToUserId(String assignedToUserId);
 }
