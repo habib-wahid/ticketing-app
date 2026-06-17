@@ -24,6 +24,7 @@ import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.dto.TicketStatusHistoryResponse;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
+import com.example.ticketing_app.dto.UserTicketStatsResponse;
 import com.example.ticketing_app.entity.CommentAuthor;
 import com.example.ticketing_app.entity.ComplaintCategory;
 import com.example.ticketing_app.entity.SlaPolicy;
@@ -128,6 +129,13 @@ public class TicketService {
 	private Map<String, String> loadAssignedUserNames(List<Ticket> tickets) {
 		return Collections.emptyMap();
 	}
+
+    public UserTicketStatsResponse getMyTicketStats(String userId) {
+        long totalTickets = ticketRepository.countByCreatedByUserId(userId);
+        long assignedTickets = ticketRepository.countByAssignedToUserId(userId);
+        long resolvedTickets = ticketRepository.countByCreatedByUserIdAndStatus(userId, TicketStatus.RESOLVED);
+        return new UserTicketStatsResponse(totalTickets, assignedTickets, resolvedTickets);
+    }
 
     public TicketResponse findByTicketId(String ticketId, ActorContext actor) {
         return toResponse(getTicketEntity(ticketId, actor));

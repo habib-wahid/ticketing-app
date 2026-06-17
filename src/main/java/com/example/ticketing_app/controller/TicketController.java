@@ -13,6 +13,7 @@ import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
 import com.example.ticketing_app.dto.TicketSummaryResponse;
 import com.example.ticketing_app.dto.TicketUpdateRequest;
+import com.example.ticketing_app.dto.UserTicketStatsResponse;
 import com.example.ticketing_app.security.UserPrincipal;
 import com.example.ticketing_app.service.ActorContext;
 import com.example.ticketing_app.service.TicketService;
@@ -80,6 +81,13 @@ public class TicketController {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return ResponseEntity.ok(ApiResponse.success("Tickets fetched",
                 ticketService.findMyAssignedTickets(principal.getUserId(), request.title(), request, pageRequest)));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<ApiResponse<UserTicketStatsResponse>> getMyTicketStats(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Ticket stats fetched",
+                ticketService.getMyTicketStats(principal.getUserId())));
     }
 
 	@GetMapping("/{ticketId}")

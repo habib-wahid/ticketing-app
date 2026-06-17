@@ -3,7 +3,6 @@ package com.example.ticketing_app.entity;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.Getter;
@@ -19,7 +18,6 @@ public class ComplaintCategory {
 	@Id
 	private String id;
 
-	@Indexed(unique = true)
 	private String name;
 
 	private String createdBy;
