@@ -11,6 +11,6 @@ public interface SlaPolicyRepository extends MongoRepository<SlaPolicy, String> 
 
 	Optional<SlaPolicy> findByCategoryIdAndPriority(String categoryId, TicketPriority priority);
 
-	boolean existsByCategoryIdAndPriority(String categoryId, TicketPriority priority);
+	boolean existsByNameIgnoreCase(String name);
 }
 

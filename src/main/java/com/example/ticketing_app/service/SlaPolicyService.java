@@ -6,6 +6,7 @@ import com.example.ticketing_app.dto.SlaPolicyUpdateRequest;
 import com.example.ticketing_app.entity.ComplaintCategory;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.TicketPriority;
+import com.example.ticketing_app.exception.ConflictException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.mapper.SlaPolicyMapper;
 import com.example.ticketing_app.repository.ComplaintCategoryRepository;
@@ -40,8 +41,13 @@ public class SlaPolicyService {
 
 	public SlaPolicyResponse create(SlaPolicyCreateRequest request) {
 		ComplaintCategory category = resolveCategory(request.complaintCategoryId());
+		String name = normalizeName(request.name());
+		if (slaPolicyRepository.existsByNameIgnoreCase(name)) {
+			throw new ConflictException("SLA policy already exists with name: " + name);
+		}
 
 		SlaPolicy policy = slaPolicyMapper.toEntity(request);
+		policy.setName(name);
 		policy.setCategoryId(category.getId());
 		policy.setCategoryName(category.getName());
 		policy.setActive(request.active() == null || request.active());
@@ -57,6 +63,9 @@ public class SlaPolicyService {
 		SlaPolicy policy = getPolicyEntity(id);
 
 		slaPolicyMapper.updateEntity(request, policy);
+		if (request.name() != null) {
+			policy.setName(normalizeName(request.name()));
+		}
 		if (request.updatedBy() != null) {
 			policy.setUpdatedBy(normalizeUpdatedBy(request.updatedBy()));
 		}
@@ -93,6 +102,10 @@ public class SlaPolicyService {
 
 	private String normalizeUpdatedBy(String updatedBy) {
 		return StringUtils.hasText(updatedBy) ? updatedBy.trim() : "SYSTEM";
+	}
+
+	private String normalizeName(String name) {
+		return StringUtils.hasText(name) ? name.trim() : name;
 	}
 }
 

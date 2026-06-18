@@ -6,6 +6,7 @@ import com.example.ticketing_app.entity.TicketPriority;
 
 public record SlaPolicyResponse(
 		String id,
+		String name,
 		ComplaintCategorySummaryResponse category,
 		TicketPriority priority,
 		Integer firstResponseTimeHours,

@@ -24,6 +24,7 @@ public class SlaPolicy {
 	@Id
 	private String id;
 
+	private String name;
 	private String categoryId;
 	private String categoryName;
 	private TicketPriority priority;
