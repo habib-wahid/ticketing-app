@@ -611,12 +611,16 @@ public class TicketService {
         return "cmt_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 
+    private String resolvePolicyCategoryId(Ticket ticket) {
+        return ticket.getCategory() != null ? ticket.getCategory().getId() : null;
+    }
+
     private void applySlaPolicy(Ticket ticket, TicketPriority priority, LocalDateTime createdAt) {
-        SlaPolicy policy = slaPolicyService.findPolicyByPriority(priority);
-        int responseHours = policy != null ? policy.getResponseTimeHours() : defaultResponseHours(priority);
+        SlaPolicy policy = slaPolicyService.findPolicy(resolvePolicyCategoryId(ticket), priority);
+        int responseHours = policy != null ? policy.getFirstResponseTimeHours() : defaultResponseHours(priority);
         int resolutionHours = policy != null ? policy.getResolutionTimeHours() : defaultResolutionHours(priority);
         int escalationHours = policy != null ? policy.getEscalationAfterHours() : defaultEscalationHours(priority);
-        int reminderMinutes = policy != null ? policy.getReminderIntervalMinutes() : defaultReminderMinutes(priority);
+        int reminderMinutes = policy != null ? policy.getReminderThreshHoldHours() : defaultReminderMinutes(priority);
 
         LocalDateTime responseDeadline = createdAt.plusHours(responseHours);
         LocalDateTime slaDeadline = createdAt.plusHours(resolutionHours);
@@ -645,8 +649,8 @@ public class TicketService {
             ticket.setEscalationLevel(1);
         }
 
-        SlaPolicy policy = slaPolicyService.findPolicyByPriority(ticket.getPriority());
-        int reminderMinutes = policy != null ? policy.getReminderIntervalMinutes() : defaultReminderMinutes(ticket.getPriority());
+        SlaPolicy policy = slaPolicyService.findPolicy(resolvePolicyCategoryId(ticket), ticket.getPriority());
+        int reminderMinutes = policy != null ? policy.getReminderThreshHoldHours() : defaultReminderMinutes(ticket.getPriority());
         if (ticket.getNextReminderAt() != null && now.isAfter(ticket.getNextReminderAt())) {
             ticket.setNextReminderAt(now.plusMinutes(reminderMinutes));
         }

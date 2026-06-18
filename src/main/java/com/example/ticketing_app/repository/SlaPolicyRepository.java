@@ -9,8 +9,8 @@ import com.example.ticketing_app.entity.TicketPriority;
 
 public interface SlaPolicyRepository extends MongoRepository<SlaPolicy, String> {
 
-	Optional<SlaPolicy> findByPriority(TicketPriority priority);
+	Optional<SlaPolicy> findByCategoryIdAndPriority(String categoryId, TicketPriority priority);
 
-	boolean existsByPriority(TicketPriority priority);
+	boolean existsByCategoryIdAndPriority(String categoryId, TicketPriority priority);
 }
 
