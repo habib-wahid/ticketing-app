@@ -6,14 +6,15 @@ import com.example.ticketing_app.entity.TicketPriority;
 
 public record SlaPolicyResponse(
 		String id,
+		String name,
+		ComplaintCategorySummaryResponse category,
 		TicketPriority priority,
-		Integer responseTimeHours,
+		Integer firstResponseTimeHours,
 		Integer resolutionTimeHours,
 		Integer escalationAfterHours,
-		Integer reminderIntervalMinutes,
+		Integer reminderThreshHoldHours,
 		boolean active,
 		String updatedBy,
 		LocalDateTime updatedAt,
 		LocalDateTime createdAt) {
 }
-

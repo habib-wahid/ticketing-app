@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
 public record SlaPolicyUpdateRequest(
+		@Size(max = 100) String name,
 		@Min(1) Integer responseTimeHours,
 		@Min(1) Integer resolutionTimeHours,
 		@Min(1) Integer escalationAfterHours,
