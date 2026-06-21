@@ -42,8 +42,8 @@ public class SlaPolicyService {
 	public SlaPolicyResponse create(SlaPolicyCreateRequest request) {
 		ComplaintCategory category = resolveCategory(request.complaintCategoryId());
 		String name = normalizeName(request.name());
-		if (slaPolicyRepository.existsByNameIgnoreCase(name)) {
-			throw new ConflictException("SLA policy already exists with name: " + name);
+		if (slaPolicyRepository.findByCategoryIdAndPriority(request.complaintCategoryId(), request.priority()).isPresent()) {
+			throw new ConflictException("SLA policy already exists with the current complaint category and priority");
 		}
 
 		SlaPolicy policy = slaPolicyMapper.toEntity(request);
