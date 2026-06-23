@@ -241,6 +241,7 @@ public class TicketService {
                 throw new BadRequestException("Complaint category id cannot be blank");
             }
             ticket.setCategory(resolveComplaintCategory(complaintCategoryId));
+            applySlaPolicy(ticket, ticket.getPriority(), ticket.getCreatedAt() == null ? now : ticket.getCreatedAt());
         }
         if (request.priority() != null && request.priority() != ticket.getPriority()) {
             ticket.setPriority(request.priority());
@@ -533,6 +534,7 @@ public class TicketService {
                 ticket.getAssignedAt(),
                 ticket.getResolvedAt(),
                 ticket.getClosedAt(),
+                ticket.getSlaPolicyId(),
                 buildSlaSummary(ticket),
                 ticket.getResponseDeadline(),
                 ticket.getEscalationDueAt(),
@@ -568,6 +570,7 @@ public class TicketService {
 				ticket.getAssignedAt(),
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
+				ticket.getSlaPolicyId(),
 				buildSlaSummary(ticket),
 			 ticket.getResponseDeadline(),
 			 ticket.getEscalationDueAt(),
@@ -636,6 +639,7 @@ public class TicketService {
 
     private void applySlaPolicy(Ticket ticket, TicketPriority priority, LocalDateTime createdAt) {
         SlaPolicy policy = slaPolicyService.findPolicy(resolvePolicyCategoryId(ticket), priority);
+        ticket.setSlaPolicyId(policy != null ? policy.getId() : null);
         SlaClockTargets targets = SlaClockTargets.from(policy, priority);
         SlaDeadlines deadlines = slaClock.computeDeadlines(createdAt, targets);
 

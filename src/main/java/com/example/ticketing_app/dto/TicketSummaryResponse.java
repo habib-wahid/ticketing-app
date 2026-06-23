@@ -19,6 +19,7 @@ public record TicketSummaryResponse(
 		LocalDateTime assignedAt,
 		LocalDateTime resolvedAt,
 		LocalDateTime closedAt,
+		String slaPolicyId,
 		TicketSlaSummary sla,
 		LocalDateTime responseDeadline,
 		LocalDateTime escalationDueAt,

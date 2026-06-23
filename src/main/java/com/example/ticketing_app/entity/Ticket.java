@@ -44,6 +44,7 @@ public class Ticket {
 	private LocalDateTime assignedAt;
 	private LocalDateTime resolvedAt;
 	private LocalDateTime closedAt;
+	private String slaPolicyId;
 	private LocalDateTime slaDeadline;
 	private LocalDateTime responseDeadline;
 	private LocalDateTime escalationDueAt;
