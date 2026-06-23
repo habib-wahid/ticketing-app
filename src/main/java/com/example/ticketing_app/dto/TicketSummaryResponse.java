@@ -25,6 +25,8 @@ public record TicketSummaryResponse(
 		LocalDateTime nextReminderAt,
 		LocalDateTime slaBreachedAt,
 		Integer escalationLevel,
+		Long firstResponseMinutes,
+		Boolean responseBreached,
 		List<String> tags,
 		Map<String, Object> customFields,
 		LocalDateTime createdAt,

@@ -54,8 +54,32 @@ public class SlaClock {
 		if (isTerminal(ticket.getStatus()) || ticket.getSlaDeadline() == null) {
 			return false;
 		}
-		return remainingMinutes(now, ticket) == 0
-				&& !now.isBefore(ticket.getSlaDeadline());
+		if (ticket.getPausedAt() != null) {
+			return false;
+		}
+		return now.isAfter(ticket.getSlaDeadline());
+	}
+
+	public long calculateFirstResponseMinutes(Ticket ticket, LocalDateTime assignedAt) {
+		if (ticket.getCreatedAt() == null || assignedAt == null) {
+			return 0;
+		}
+		boolean twentyFourSeven = SlaClockTargets.isTwentyFourSeven(ticket.getPriority());
+		return workingMinutesBetween(ticket.getCreatedAt(), assignedAt, twentyFourSeven);
+	}
+
+	public boolean isResponseBreached(LocalDateTime assignedAt, LocalDateTime responseDeadline) {
+		return responseDeadline != null && assignedAt != null && assignedAt.isAfter(responseDeadline);
+	}
+
+	public boolean isResponseBreachedUnassigned(LocalDateTime now, Ticket ticket) {
+		if (ticket.getAssignedAt() != null || ticket.getResponseDeadline() == null) {
+			return false;
+		}
+		if (ticket.getPausedAt() != null) {
+			return false;
+		}
+		return now.isAfter(ticket.getResponseDeadline());
 	}
 
 	public void onPause(Ticket ticket, LocalDateTime now) {

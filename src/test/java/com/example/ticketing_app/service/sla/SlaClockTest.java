@@ -69,4 +69,44 @@ class SlaClockTest {
 		assertEquals(remainingAtPause, remainingLater);
 		assertTrue(remainingAtPause > 0);
 	}
+
+	@Test
+	void resolutionBreachedWhenUnresolvedPastSlaDeadline() {
+		Ticket ticket = new Ticket();
+		ticket.setStatus(TicketStatus.IN_PROGRESS);
+		ticket.setSlaDeadline(LocalDateTime.of(2026, 6, 18, 12, 0));
+
+		assertTrue(slaClock.isBreached(LocalDateTime.of(2026, 6, 18, 12, 1), ticket));
+	}
+
+	@Test
+	void resolutionNotBreachedWhenResolvedBeforeDeadline() {
+		Ticket ticket = new Ticket();
+		ticket.setStatus(TicketStatus.RESOLVED);
+		ticket.setSlaDeadline(LocalDateTime.of(2026, 6, 18, 12, 0));
+
+		assertTrue(!slaClock.isBreached(LocalDateTime.of(2026, 6, 18, 13, 0), ticket));
+	}
+
+	@Test
+	void resolutionNotBreachedWhilePausedPastDeadline() {
+		Ticket ticket = new Ticket();
+		ticket.setStatus(TicketStatus.WAITING_ON_CUSTOMER);
+		ticket.setSlaDeadline(LocalDateTime.of(2026, 6, 18, 12, 0));
+		ticket.setPausedAt(LocalDateTime.of(2026, 6, 18, 11, 0));
+
+		assertTrue(!slaClock.isBreached(LocalDateTime.of(2026, 6, 18, 13, 0), ticket));
+	}
+
+	@Test
+	void firstResponseMinutesUsesWorkingTimeForMediumPriority() {
+		Ticket ticket = new Ticket();
+		ticket.setPriority(TicketPriority.MEDIUM);
+		ticket.setCreatedAt(LocalDateTime.of(2026, 6, 18, 17, 0));
+		LocalDateTime assignedAt = LocalDateTime.of(2026, 6, 19, 10, 0);
+
+		long minutes = slaClock.calculateFirstResponseMinutes(ticket, assignedAt);
+
+		assertEquals(60, minutes);
+	}
 }

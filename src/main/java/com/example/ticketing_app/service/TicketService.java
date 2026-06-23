@@ -192,7 +192,6 @@ public class TicketService {
         }
 
         if (assignedToUserId != null) {
-            ticket.setAssignedAt(now);
             addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, createdBy.getUserId(),
                     buildFullName(createdBy),
                     "Assigned on create");
@@ -203,6 +202,10 @@ public class TicketService {
         ticket.setCustomFields(request.customFields() == null ? new HashMap<>() : new HashMap<>(request.customFields()));
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
+
+        if (assignedToUserId != null) {
+            recordFirstAssignment(ticket, now);
+        }
 
         if (files != null) {
             for (MultipartFile file : files) {
@@ -259,7 +262,7 @@ public class TicketService {
                     throw new BadRequestException("Assigned user must be active");
                 }
                 ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-                ticket.setAssignedAt(now);
+                recordFirstAssignment(ticket, now);
                 if (ticket.getStatus() == TicketStatus.NEW) {
                     addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "System", "Assigned");
                     ticket.setStatus(TicketStatus.ASSIGNED);
@@ -420,7 +423,7 @@ public class TicketService {
 
         LocalDateTime now = LocalDateTime.now();
         ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-        ticket.setAssignedAt(now);
+        recordFirstAssignment(ticket, now);
         ticket.setUpdatedAt(now);
         addStatusHistory(ticket, previousStatus, requestedStatus, actor.getUserId(),
                 buildFullName(actor),
@@ -536,6 +539,8 @@ public class TicketService {
                 ticket.getNextReminderAt(),
                 ticket.getSlaBreachedAt(),
                 ticket.getEscalationLevel(),
+                ticket.getFirstResponseMinutes(),
+                ticket.getResponseBreached(),
                 toCommentResponses(ticket.getComments()),
                 toAttachmentResponses(ticket.getAttachments()),
                 toStatusHistoryResponses(ticket.getStatusHistory()),
@@ -569,6 +574,8 @@ public class TicketService {
 			 ticket.getNextReminderAt(),
 			 ticket.getSlaBreachedAt(),
 			 ticket.getEscalationLevel(),
+			 ticket.getFirstResponseMinutes(),
+			 ticket.getResponseBreached(),
 			 ticket.getTags(),
 			 ticket.getCustomFields(),
 			 ticket.getCreatedAt(),
@@ -642,6 +649,9 @@ public class TicketService {
         if (ticket.getStatus() == TicketStatus.RESOLVED || ticket.getStatus() == TicketStatus.CLOSED) {
             return;
         }
+        if (slaClock.isResponseBreachedUnassigned(now, ticket)) {
+            ticket.setResponseBreached(true);
+        }
         if (ticket.getSlaDeadline() != null && ticket.getSlaBreachedAt() == null && slaClock.isBreached(now, ticket)) {
             ticket.setSlaBreachedAt(now);
         }
@@ -655,6 +665,16 @@ public class TicketService {
         if (ticket.getNextReminderAt() != null && now.isAfter(ticket.getNextReminderAt())) {
             ticket.setNextReminderAt(now.plusHours(targets.reminderThresholdHours()));
         }
+    }
+
+    private void recordFirstAssignment(Ticket ticket, LocalDateTime assignedAt) {
+        ticket.setAssignedAt(assignedAt);
+        if (ticket.getFirstResponseMinutes() != null) {
+            return;
+        }
+        long minutes = slaClock.calculateFirstResponseMinutes(ticket, assignedAt);
+        ticket.setFirstResponseMinutes(minutes);
+        ticket.setResponseBreached(slaClock.isResponseBreached(assignedAt, ticket.getResponseDeadline()));
     }
 
     private void applyStatusTimestamps(Ticket ticket, TicketStatus status, LocalDateTime now) {

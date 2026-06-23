@@ -50,6 +50,8 @@ public class Ticket {
 	private LocalDateTime nextReminderAt;
 	private LocalDateTime slaBreachedAt;
 	private Integer escalationLevel = 0;
+	private Long firstResponseMinutes;
+	private Boolean responseBreached;
 	private LocalDateTime pausedAt;
 	private long pausedMinutesTotal;
 	private List<TicketComment> comments = new ArrayList<>();

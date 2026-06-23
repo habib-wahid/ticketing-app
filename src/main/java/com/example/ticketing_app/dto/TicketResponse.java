@@ -25,6 +25,8 @@ public record TicketResponse(
 		LocalDateTime nextReminderAt,
 		LocalDateTime slaBreachedAt,
 		Integer escalationLevel,
+		Long firstResponseMinutes,
+		Boolean responseBreached,
 		List<TicketCommentResponse> comments,
 		List<TicketAttachmentResponse> attachments,
 		List<TicketStatusHistoryResponse> statusHistory,
