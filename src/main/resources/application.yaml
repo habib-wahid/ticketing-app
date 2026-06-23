@@ -18,6 +18,18 @@ app:
     upload-directory: ./uploads
     public-url-prefix: /api/files
     max-file-size-bytes: 10485760
+  sla:
+    business-hours:
+      timezone: Asia/Dhaka
+      start: "09:00"
+      end: "18:00"
+      working-days:
+        - SUNDAY
+        - MONDAY
+        - TUESDAY
+        - WEDNESDAY
+        - THURSDAY
+    holidays: []
 
 springdoc:
   api-docs:

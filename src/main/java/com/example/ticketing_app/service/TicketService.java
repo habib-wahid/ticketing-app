@@ -46,6 +46,9 @@ import com.example.ticketing_app.repository.ComplaintCategoryRepository;
 import com.example.ticketing_app.repository.TicketCategoryCountProjection;
 import com.example.ticketing_app.repository.TicketRepository;
 import com.example.ticketing_app.repository.UserRepository;
+import com.example.ticketing_app.service.sla.SlaClock;
+import com.example.ticketing_app.service.sla.SlaClockTargets;
+import com.example.ticketing_app.service.sla.SlaDeadlines;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -54,7 +57,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -78,14 +80,17 @@ public class TicketService {
     private final SlaPolicyService slaPolicyService;
     private final ComplaintCategoryRepository complaintCategoryRepository;
     private final FileStorageService fileStorageService;
+    private final SlaClock slaClock;
 
     public TicketService(TicketRepository ticketRepository, UserRepository userRepository, SlaPolicyService slaPolicyService,
-            ComplaintCategoryRepository complaintCategoryRepository, FileStorageService fileStorageService) {
+            ComplaintCategoryRepository complaintCategoryRepository, FileStorageService fileStorageService,
+            SlaClock slaClock) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
         this.slaPolicyService = slaPolicyService;
         this.complaintCategoryRepository = complaintCategoryRepository;
         this.fileStorageService = fileStorageService;
+        this.slaClock = slaClock;
     }
 
     public Page<TicketSummaryResponse> findAll(ActorContext actor, Pageable pageable) {
@@ -187,7 +192,6 @@ public class TicketService {
         }
 
         if (assignedToUserId != null) {
-            ticket.setAssignedAt(now);
             addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, createdBy.getUserId(),
                     buildFullName(createdBy),
                     "Assigned on create");
@@ -198,6 +202,10 @@ public class TicketService {
         ticket.setCustomFields(request.customFields() == null ? new HashMap<>() : new HashMap<>(request.customFields()));
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
+
+        if (assignedToUserId != null) {
+            recordFirstAssignment(ticket, now);
+        }
 
         if (files != null) {
             for (MultipartFile file : files) {
@@ -233,6 +241,7 @@ public class TicketService {
                 throw new BadRequestException("Complaint category id cannot be blank");
             }
             ticket.setCategory(resolveComplaintCategory(complaintCategoryId));
+            applySlaPolicy(ticket, ticket.getPriority(), ticket.getCreatedAt() == null ? now : ticket.getCreatedAt());
         }
         if (request.priority() != null && request.priority() != ticket.getPriority()) {
             ticket.setPriority(request.priority());
@@ -254,7 +263,7 @@ public class TicketService {
                     throw new BadRequestException("Assigned user must be active");
                 }
                 ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-                ticket.setAssignedAt(now);
+                recordFirstAssignment(ticket, now);
                 if (ticket.getStatus() == TicketStatus.NEW) {
                     addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "System", "Assigned");
                     ticket.setStatus(TicketStatus.ASSIGNED);
@@ -265,6 +274,13 @@ public class TicketService {
         if (request.status() != null) {
             TicketStatus targetStatus = request.status();
             TicketStatus previousStatus = ticket.getStatus();
+            if (targetStatus == TicketStatus.WAITING_ON_CUSTOMER
+                    && previousStatus != TicketStatus.WAITING_ON_CUSTOMER) {
+                slaClock.onPause(ticket, now);
+            } else if (previousStatus == TicketStatus.WAITING_ON_CUSTOMER
+                    && targetStatus != TicketStatus.WAITING_ON_CUSTOMER) {
+                slaClock.onResume(ticket, now);
+            }
             ticket.setStatus(targetStatus);
             applyStatusTimestamps(ticket, targetStatus, now);
             addStatusHistory(ticket, previousStatus, targetStatus, SYSTEM_ACTOR, "System", "Status update");
@@ -408,7 +424,7 @@ public class TicketService {
 
         LocalDateTime now = LocalDateTime.now();
         ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-        ticket.setAssignedAt(now);
+        recordFirstAssignment(ticket, now);
         ticket.setUpdatedAt(now);
         addStatusHistory(ticket, previousStatus, requestedStatus, actor.getUserId(),
                 buildFullName(actor),
@@ -518,12 +534,15 @@ public class TicketService {
                 ticket.getAssignedAt(),
                 ticket.getResolvedAt(),
                 ticket.getClosedAt(),
+                ticket.getSlaPolicyId(),
                 buildSlaSummary(ticket),
                 ticket.getResponseDeadline(),
                 ticket.getEscalationDueAt(),
                 ticket.getNextReminderAt(),
                 ticket.getSlaBreachedAt(),
                 ticket.getEscalationLevel(),
+                ticket.getFirstResponseMinutes(),
+                ticket.getResponseBreached(),
                 toCommentResponses(ticket.getComments()),
                 toAttachmentResponses(ticket.getAttachments()),
                 toStatusHistoryResponses(ticket.getStatusHistory()),
@@ -551,12 +570,15 @@ public class TicketService {
 				ticket.getAssignedAt(),
 				ticket.getResolvedAt(),
 				ticket.getClosedAt(),
+				ticket.getSlaPolicyId(),
 				buildSlaSummary(ticket),
 			 ticket.getResponseDeadline(),
 			 ticket.getEscalationDueAt(),
 			 ticket.getNextReminderAt(),
 			 ticket.getSlaBreachedAt(),
 			 ticket.getEscalationLevel(),
+			 ticket.getFirstResponseMinutes(),
+			 ticket.getResponseBreached(),
 			 ticket.getTags(),
 			 ticket.getCustomFields(),
 			 ticket.getCreatedAt(),
@@ -617,31 +639,24 @@ public class TicketService {
 
     private void applySlaPolicy(Ticket ticket, TicketPriority priority, LocalDateTime createdAt) {
         SlaPolicy policy = slaPolicyService.findPolicy(resolvePolicyCategoryId(ticket), priority);
-        int responseHours = policy != null ? policy.getFirstResponseTimeHours() : defaultResponseHours(priority);
-        int resolutionHours = policy != null ? policy.getResolutionTimeHours() : defaultResolutionHours(priority);
-        int escalationHours = policy != null ? policy.getEscalationAfterHours() : defaultEscalationHours(priority);
-        int reminderMinutes = policy != null ? policy.getReminderThreshHoldHours() : defaultReminderMinutes(priority);
+        ticket.setSlaPolicyId(policy != null ? policy.getId() : null);
+        SlaClockTargets targets = SlaClockTargets.from(policy, priority);
+        SlaDeadlines deadlines = slaClock.computeDeadlines(createdAt, targets);
 
-        LocalDateTime responseDeadline = createdAt.plusHours(responseHours);
-        LocalDateTime slaDeadline = createdAt.plusHours(resolutionHours);
-        LocalDateTime escalationDueAt = createdAt.plusHours(escalationHours);
-        LocalDateTime reminderAt = slaDeadline.minusMinutes(reminderMinutes);
-        if (reminderAt.isBefore(createdAt)) {
-            reminderAt = createdAt;
-        }
-
-        ticket.setResponseDeadline(responseDeadline);
-        ticket.setSlaDeadline(slaDeadline);
-        ticket.setEscalationDueAt(escalationDueAt);
-        ticket.setNextReminderAt(reminderAt);
+        ticket.setResponseDeadline(deadlines.responseDeadline());
+        ticket.setSlaDeadline(deadlines.slaDeadline());
+        ticket.setEscalationDueAt(deadlines.escalationDueAt());
+        ticket.setNextReminderAt(deadlines.nextReminderAt());
     }
 
     private void applySlaState(Ticket ticket, LocalDateTime now) {
         if (ticket.getStatus() == TicketStatus.RESOLVED || ticket.getStatus() == TicketStatus.CLOSED) {
             return;
         }
-        if (ticket.getSlaDeadline() != null && ticket.getSlaBreachedAt() == null
-                && now.isAfter(ticket.getSlaDeadline())) {
+        if (slaClock.isResponseBreachedUnassigned(now, ticket)) {
+            ticket.setResponseBreached(true);
+        }
+        if (ticket.getSlaDeadline() != null && ticket.getSlaBreachedAt() == null && slaClock.isBreached(now, ticket)) {
             ticket.setSlaBreachedAt(now);
         }
         if (ticket.getEscalationDueAt() != null && ticket.getEscalationLevel() != null
@@ -650,46 +665,20 @@ public class TicketService {
         }
 
         SlaPolicy policy = slaPolicyService.findPolicy(resolvePolicyCategoryId(ticket), ticket.getPriority());
-        int reminderMinutes = policy != null ? policy.getReminderThreshHoldHours() : defaultReminderMinutes(ticket.getPriority());
+        SlaClockTargets targets = SlaClockTargets.from(policy, ticket.getPriority());
         if (ticket.getNextReminderAt() != null && now.isAfter(ticket.getNextReminderAt())) {
-            ticket.setNextReminderAt(now.plusMinutes(reminderMinutes));
+            ticket.setNextReminderAt(now.plusHours(targets.reminderThresholdHours()));
         }
     }
 
-    private int defaultResponseHours(TicketPriority priority) {
-        return switch (priority) {
-            case LOW -> 24;
-            case MEDIUM -> 8;
-            case HIGH -> 2;
-            case CRITICAL -> 1;
-        };
-    }
-
-    private int defaultResolutionHours(TicketPriority priority) {
-        return switch (priority) {
-            case LOW -> 72;
-            case MEDIUM -> 24;
-            case HIGH -> 8;
-            case CRITICAL -> 4;
-        };
-    }
-
-    private int defaultEscalationHours(TicketPriority priority) {
-        return switch (priority) {
-            case LOW -> 48;
-            case MEDIUM -> 12;
-            case HIGH -> 4;
-            case CRITICAL -> 2;
-        };
-    }
-
-    private int defaultReminderMinutes(TicketPriority priority) {
-        return switch (priority) {
-            case LOW -> 60;
-            case MEDIUM -> 30;
-            case HIGH -> 15;
-            case CRITICAL -> 5;
-        };
+    private void recordFirstAssignment(Ticket ticket, LocalDateTime assignedAt) {
+        ticket.setAssignedAt(assignedAt);
+        if (ticket.getFirstResponseMinutes() != null) {
+            return;
+        }
+        long minutes = slaClock.calculateFirstResponseMinutes(ticket, assignedAt);
+        ticket.setFirstResponseMinutes(minutes);
+        ticket.setResponseBreached(slaClock.isResponseBreached(assignedAt, ticket.getResponseDeadline()));
     }
 
     private void applyStatusTimestamps(Ticket ticket, TicketStatus status, LocalDateTime now) {
@@ -885,11 +874,8 @@ public class TicketService {
             return null;
         }
         LocalDateTime now = LocalDateTime.now();
-        long remainingMinutes = Duration.between(now, ticket.getSlaDeadline()).toMinutes();
-        if (remainingMinutes < 0) {
-            remainingMinutes = 0;
-        }
-        boolean breached = ticket.getSlaBreachedAt() != null || now.isAfter(ticket.getSlaDeadline());
+        long remainingMinutes = slaClock.remainingMinutes(now, ticket);
+        boolean breached = slaClock.isBreached(now, ticket) || ticket.getSlaBreachedAt() != null;
         return new TicketSlaSummary(ticket.getSlaDeadline(), remainingMinutes, breached);
     }
 

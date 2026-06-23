@@ -44,12 +44,17 @@ public class Ticket {
 	private LocalDateTime assignedAt;
 	private LocalDateTime resolvedAt;
 	private LocalDateTime closedAt;
+	private String slaPolicyId;
 	private LocalDateTime slaDeadline;
 	private LocalDateTime responseDeadline;
 	private LocalDateTime escalationDueAt;
 	private LocalDateTime nextReminderAt;
 	private LocalDateTime slaBreachedAt;
 	private Integer escalationLevel = 0;
+	private Long firstResponseMinutes;
+	private Boolean responseBreached;
+	private LocalDateTime pausedAt;
+	private long pausedMinutesTotal;
 	private List<TicketComment> comments = new ArrayList<>();
 	private List<TicketAttachment> attachments = new ArrayList<>();
 	private List<TicketStatusHistory> statusHistory = new ArrayList<>();
