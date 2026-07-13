@@ -5,6 +5,7 @@ import com.example.ticketing_app.dto.UserProfileResponse;
 import com.example.ticketing_app.dto.UserResponse;
 import com.example.ticketing_app.dto.UserUpdateRequest;
 import com.example.ticketing_app.entity.User;
+import com.example.ticketing_app.entity.UserRole;
 import com.example.ticketing_app.exception.ConflictException;
 import com.example.ticketing_app.exception.ResourceNotFoundException;
 import com.example.ticketing_app.repository.UserRepository;
@@ -42,6 +43,26 @@ public class UserService {
 				.stream()
 				.map(this::toResponse)
 				.collect(Collectors.toList());
+	}
+
+	public List<UserResponse> findByRole(UserRole role) {
+		return userRepository.findByRoleAndIsActiveTrue(role).stream()
+				.map(this::toResponse)
+				.collect(Collectors.toList());
+	}
+
+	public List<UserResponse> search(String name, UserRole role) {
+		if (!StringUtils.hasText(name)) {
+			if (role == null) {
+				return List.of();
+			}
+			return findByRole(role);
+		}
+		List<UserResponse> results = searchByName(name);
+		if (role == null) {
+			return results;
+		}
+		return results.stream().filter(user -> user.role() == role).collect(Collectors.toList());
 	}
 
 	public UserResponse create(UserCreateRequest request) {

@@ -24,6 +24,7 @@ import com.example.ticketing_app.dto.UserCreateRequest;
 import com.example.ticketing_app.dto.UserResponse;
 import com.example.ticketing_app.dto.UserUpdateRequest;
 import com.example.ticketing_app.dto.UserProfileResponse;
+import com.example.ticketing_app.entity.UserRole;
 import com.example.ticketing_app.service.UserService;
 import com.example.ticketing_app.security.UserPrincipal;
 
@@ -67,8 +68,10 @@ public class UserController {
 	}
 
 	@GetMapping("/search")
-	public ResponseEntity<ApiResponse<List<UserResponse>>> search(@RequestParam String name) {
-		return ResponseEntity.ok(ApiResponse.success("Staff search results fetched", userService.searchByName(name)));
+	public ResponseEntity<ApiResponse<List<UserResponse>>> search(
+			@RequestParam(required = false) String name,
+			@RequestParam(required = false) UserRole role) {
+		return ResponseEntity.ok(ApiResponse.success("Staff search results fetched", userService.search(name, role)));
 	}
 
 	@PostMapping

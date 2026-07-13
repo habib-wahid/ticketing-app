@@ -40,8 +40,7 @@ public class UserPrincipal implements UserDetails {
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		String roleName = role == UserRole.ADMIN ? "ROLE_ADMIN" : "ROLE_USER";
-		return List.of(new SimpleGrantedAuthority(roleName));
+		return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
 	}
 
 	@Override
