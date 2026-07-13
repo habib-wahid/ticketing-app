@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.example.ticketing_app.entity.User;
+import com.example.ticketing_app.entity.UserRole;
 
 public interface UserRepository extends MongoRepository<User, String> {
 
@@ -19,6 +20,8 @@ public interface UserRepository extends MongoRepository<User, String> {
 
 	List<User> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseAndIsActiveTrue(String firstNameQuery,
 			String lastNameQuery);
+
+	List<User> findByRoleAndIsActiveTrue(UserRole role);
 
 	boolean existsByUserId(String userId);
 

@@ -14,5 +14,9 @@ public record ActorContext(String userId, UserRole role) {
     public boolean isCustomer() {
         return role == UserRole.CUSTOMER;
     }
+
+	public boolean isDistributor() {
+		return role == UserRole.DISTRIBUTOR;
+	}
 }
 
