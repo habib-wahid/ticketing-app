@@ -50,6 +50,19 @@ public class CategoryDistributorMappingService {
 						"No distributor mapping found for category: " + categoryId));
 	}
 
+	/**
+	 * Resolves the active distributor user for a category (1:1 mapping).
+	 */
+	public User requireActiveDistributor(String categoryId) {
+		CategoryDistributorMapping mapping = mappingRepository.findByCategoryId(categoryId)
+				.orElseThrow(() -> new BadRequestException(
+						"No distributor mapping configured for category: " + categoryId));
+		if (!mapping.isActive()) {
+			throw new BadRequestException("Distributor mapping is inactive for category: " + categoryId);
+		}
+		return resolveActiveDistributor(mapping.getDistributorUserId());
+	}
+
 	public CategoryDistributorMappingResponse create(CategoryDistributorMappingCreateRequest request,
 			ActorContext actor) {
 		String categoryId = request.categoryId().trim();

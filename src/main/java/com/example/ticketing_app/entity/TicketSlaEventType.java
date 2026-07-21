@@ -1,8 +1,12 @@
 package com.example.ticketing_app.entity;
 
 public enum TicketSlaEventType {
+	SLA_APPLIED,
 	DEADLINE_APPROACHING,
 	SLA_BREACHED,
-	ESCALATION_TRIGGERED
+	ESCALATION_TRIGGERED,
+	RESPONSE_BREACHED,
+	RESPONSE_MET,
+	RESOLUTION_MET
 }
 

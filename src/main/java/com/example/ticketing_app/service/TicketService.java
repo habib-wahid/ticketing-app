@@ -4,6 +4,7 @@ import com.example.ticketing_app.dto.CommentAuthorResponse;
 import com.example.ticketing_app.dto.ComplaintCategorySummaryResponse;
 import com.example.ticketing_app.dto.TicketAssignRequest;
 import com.example.ticketing_app.dto.TicketAssignedToResponse;
+import com.example.ticketing_app.dto.TicketAssignmentHistoryResponse;
 import com.example.ticketing_app.dto.TicketAttachmentResponse;
 import com.example.ticketing_app.dto.TicketCategoryCountResponse;
 import com.example.ticketing_app.dto.TicketCommentCreateRequest;
@@ -14,8 +15,10 @@ import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketCreatedByResponse;
 import com.example.ticketing_app.dto.TicketDailyStatusResponse;
 import com.example.ticketing_app.dto.TicketDashboardResponse;
+import com.example.ticketing_app.dto.TicketDistributedByResponse;
 import com.example.ticketing_app.dto.TicketPriorityDashboardResponse;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.TicketReturnRequest;
 import com.example.ticketing_app.dto.AssignedTicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSlaEventResponse;
@@ -30,11 +33,15 @@ import com.example.ticketing_app.entity.ComplaintCategory;
 import com.example.ticketing_app.entity.SlaPolicy;
 import com.example.ticketing_app.entity.Ticket;
 import com.example.ticketing_app.entity.TicketAssignedTo;
+import com.example.ticketing_app.entity.TicketAssignmentAction;
+import com.example.ticketing_app.entity.TicketAssignmentHistory;
 import com.example.ticketing_app.entity.TicketAttachment;
 import com.example.ticketing_app.entity.TicketComment;
 import com.example.ticketing_app.entity.TicketCreatedBy;
+import com.example.ticketing_app.entity.TicketDistributedBy;
 import com.example.ticketing_app.entity.TicketPriority;
 import com.example.ticketing_app.entity.TicketSlaEvent;
+import com.example.ticketing_app.entity.TicketSlaEventType;
 import com.example.ticketing_app.entity.TicketStatus;
 import com.example.ticketing_app.entity.TicketStatusHistory;
 import com.example.ticketing_app.entity.User;
@@ -57,6 +64,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -79,16 +87,19 @@ public class TicketService {
     private final UserRepository userRepository;
     private final SlaPolicyService slaPolicyService;
     private final ComplaintCategoryRepository complaintCategoryRepository;
+    private final CategoryDistributorMappingService categoryDistributorMappingService;
     private final FileStorageService fileStorageService;
     private final SlaClock slaClock;
 
     public TicketService(TicketRepository ticketRepository, UserRepository userRepository, SlaPolicyService slaPolicyService,
-            ComplaintCategoryRepository complaintCategoryRepository, FileStorageService fileStorageService,
-            SlaClock slaClock) {
+            ComplaintCategoryRepository complaintCategoryRepository,
+            CategoryDistributorMappingService categoryDistributorMappingService,
+            FileStorageService fileStorageService, SlaClock slaClock) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
         this.slaPolicyService = slaPolicyService;
         this.complaintCategoryRepository = complaintCategoryRepository;
+        this.categoryDistributorMappingService = categoryDistributorMappingService;
         this.fileStorageService = fileStorageService;
         this.slaClock = slaClock;
     }
@@ -154,58 +165,28 @@ public class TicketService {
                 .orElseThrow(() -> new ResourceNotFoundException("Created-by user not found: " + createdByUserId));
 
         ComplaintCategory complaintCategory = resolveComplaintCategory(request.complaintCategoryId());
-
-        String assignedToUserId = normalize(request.assignedToUserId());
-        if (!actor.isAdmin() && assignedToUserId != null) {
-            throw new ForbiddenException("Only admins can assign tickets");
-        }
-
-        if (createdBy.getRole() == UserRole.CUSTOMER && assignedToUserId != null) {
-            throw new BadRequestException("Customers cannot assign tickets to agents");
-        }
-
-        User assignee = null;
-        if (assignedToUserId != null) {
-            assignee = userRepository.findByUserId(assignedToUserId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
-            if (assignee.getRole() == UserRole.CUSTOMER) {
-                throw new BadRequestException("Tickets can only be assigned to agents or admins");
-            }
-            if (!assignee.isActive()) {
-                throw new BadRequestException("Assigned user must be active");
-            }
-        }
+        User distributor = categoryDistributorMappingService.requireActiveDistributor(complaintCategory.getId());
 
         String normalizedTitle = request.title().trim();
-
         LocalDateTime now = LocalDateTime.now();
+
         Ticket ticket = new Ticket();
         ticket.setTicketId(generateTicketId());
         ticket.setTitle(normalizedTitle);
         ticket.setDescription(request.description().trim());
         ticket.setCategory(complaintCategory);
         ticket.setPriority(request.priority());
-        ticket.setStatus(StringUtils.hasText(assignedToUserId) ? TicketStatus.ASSIGNED : TicketStatus.NEW);
+        ticket.setStatus(TicketStatus.NEW);
         ticket.setCreatedBy(new TicketCreatedBy(buildFullName(createdBy), createdBy.getUserId(), createdBy.getRole()));
-        if (assignee != null) {
-            ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-        }
 
-        if (assignedToUserId != null) {
-            addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, createdBy.getUserId(),
-                    buildFullName(createdBy),
-                    "Assigned on create");
-        }
+        changeAssignee(ticket, distributor, null, TicketAssignmentAction.AUTO_ROUTED,
+                "Auto-routed to category distributor", now);
 
         applySlaPolicy(ticket, ticket.getPriority(), now);
         ticket.setTags(normalizeTags(request.tags()));
         ticket.setCustomFields(request.customFields() == null ? new HashMap<>() : new HashMap<>(request.customFields()));
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
-
-        if (assignedToUserId != null) {
-            recordFirstAssignment(ticket, now);
-        }
 
         if (files != null) {
             for (MultipartFile file : files) {
@@ -251,23 +232,22 @@ public class TicketService {
         String assignedToUserId = request.assignedToUserId() == null ? null : normalize(request.assignedToUserId());
         if (request.assignedToUserId() != null) {
             if (!StringUtils.hasText(assignedToUserId)) {
-                ticket.setAssignedTo(null);
-                ticket.setAssignedAt(null);
-            } else {
-                User assignee = userRepository.findByUserId(assignedToUserId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
-                if (assignee.getRole() == UserRole.CUSTOMER) {
-                    throw new BadRequestException("Tickets can only be assigned to agents or admins");
-                }
-                if (!assignee.isActive()) {
-                    throw new BadRequestException("Assigned user must be active");
-                }
-                ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-                recordFirstAssignment(ticket, now);
-                if (ticket.getStatus() == TicketStatus.NEW) {
-                    addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "System", "Assigned");
-                    ticket.setStatus(TicketStatus.ASSIGNED);
-                }
+                throw new BadRequestException("Tickets cannot be unassigned");
+            }
+            User assignee = userRepository.findByUserId(assignedToUserId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
+            if (assignee.getRole() == UserRole.CUSTOMER) {
+                throw new BadRequestException("Tickets can only be assigned to agents, distributors, or admins");
+            }
+            if (!assignee.isActive()) {
+                throw new BadRequestException("Assigned user must be active");
+            }
+            User actedBy = userRepository.findByUserId(actor.userId()).orElse(null);
+            changeAssignee(ticket, assignee, actedBy, TicketAssignmentAction.REASSIGNED, "Reassigned", now);
+            recordFirstResponseIfNeeded(ticket, now);
+            if (ticket.getStatus() == TicketStatus.NEW) {
+                addStatusHistory(ticket, TicketStatus.NEW, TicketStatus.ASSIGNED, SYSTEM_ACTOR, "System", "Assigned");
+                ticket.setStatus(TicketStatus.ASSIGNED);
             }
         }
 
@@ -400,35 +380,82 @@ public class TicketService {
         ticketRepository.delete(ticket);
     }
 
-    public TicketResponse assign(String ticketId, TicketAssignRequest request) {
-        Ticket ticket = getTicketEntity(ticketId);
-        User actor = userRepository.findByUserId(request.assignedByUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.assignedByUserId()));
-        if (actor.getRole() == UserRole.CUSTOMER) {
-            throw new BadRequestException("Customers cannot assign tickets");
+    public TicketResponse assign(String ticketId, TicketAssignRequest request, ActorContext actorContext) {
+        Ticket ticket = getTicketEntity(ticketId, actorContext);
+        User actor = userRepository.findByUserId(actorContext.userId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + actorContext.userId()));
+
+        if (!(actorContext.isAdmin() || actorContext.isDistributor())) {
+            throw new ForbiddenException("Only distributors or admins can distribute tickets");
+        }
+        if (actorContext.isDistributor()
+                && (ticket.getAssignedTo() == null || !actorContext.userId().equals(ticket.getAssignedTo().getUserId()))) {
+            throw new ForbiddenException("You can only distribute tickets assigned to you");
+        }
+        if (ticket.getStatus() != TicketStatus.NEW && ticket.getStatus() != TicketStatus.REOPENED) {
+            throw new BadRequestException("Ticket can only be distributed from NEW or REOPENED status");
         }
 
         String assignedToUserId = normalize(request.assignedToUserId());
         User assignee = userRepository.findByUserId(assignedToUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found: " + assignedToUserId));
-        if (assignee.getRole() == UserRole.CUSTOMER) {
-            throw new BadRequestException("Tickets can only be assigned to agents or admins");
+        if (assignee.getRole() != UserRole.AGENT) {
+            throw new BadRequestException("Tickets can only be distributed to agents");
         }
         if (!assignee.isActive()) {
             throw new BadRequestException("Assigned user must be active");
         }
 
-        TicketStatus requestedStatus = TicketStatus.ASSIGNED;
         TicketStatus previousStatus = ticket.getStatus();
+        TicketStatus requestedStatus = TicketStatus.ASSIGNED;
         ticket.setStatus(requestedStatus);
 
         LocalDateTime now = LocalDateTime.now();
-        ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
-        recordFirstAssignment(ticket, now);
+        String reason = StringUtils.hasText(request.reason()) ? request.reason().trim() : "Distributed to agent";
+        changeAssignee(ticket, assignee, actor, TicketAssignmentAction.DISTRIBUTED, reason, now);
+        ticket.setDistributedBy(new TicketDistributedBy(actor.getUserId(), buildFullName(actor), actor.getRole()));
+        recordFirstResponseIfNeeded(ticket, now);
         ticket.setUpdatedAt(now);
         addStatusHistory(ticket, previousStatus, requestedStatus, actor.getUserId(),
-                buildFullName(actor),
-                StringUtils.hasText(request.reason()) ? request.reason().trim() : "Assigned");
+                buildFullName(actor), reason);
+        applySlaState(ticket, now);
+        return toResponse(ticketRepository.save(ticket));
+    }
+
+    public TicketResponse returnToDistributor(String ticketId, TicketReturnRequest request, ActorContext actorContext) {
+        Ticket ticket = getTicketEntity(ticketId, actorContext);
+        User actor = userRepository.findByUserId(actorContext.userId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + actorContext.userId()));
+
+        if (actor.getRole() != UserRole.AGENT) {
+            throw new ForbiddenException("Only the assigned agent can return a ticket to the distributor");
+        }
+        if (ticket.getAssignedTo() == null || !actorContext.userId().equals(ticket.getAssignedTo().getUserId())) {
+            throw new ForbiddenException("You can only return tickets assigned to you");
+        }
+        if (ticket.getDistributedBy() == null || !StringUtils.hasText(ticket.getDistributedBy().getUserId())) {
+            throw new BadRequestException("No distributor recorded for this ticket");
+        }
+
+        User distributor = userRepository.findByUserId(ticket.getDistributedBy().getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Distributor not found: " + ticket.getDistributedBy().getUserId()));
+        if (distributor.getRole() != UserRole.DISTRIBUTOR || !distributor.isActive()) {
+            throw new BadRequestException("Original distributor is not available");
+        }
+
+        TicketStatus previousStatus = ticket.getStatus();
+        LocalDateTime now = LocalDateTime.now();
+        String reason = request != null && StringUtils.hasText(request.reason())
+                ? request.reason().trim()
+                : "Returned to distributor";
+
+        changeAssignee(ticket, distributor, actor, TicketAssignmentAction.RETURNED_TO_DISTRIBUTOR, reason, now);
+        ticket.setDistributedBy(null);
+        ticket.setStatus(TicketStatus.NEW);
+        addStatusHistory(ticket, previousStatus, TicketStatus.NEW, actor.getUserId(), buildFullName(actor), reason);
+        ticket.setUpdatedAt(now);
+        applySlaState(ticket, now);
         return toResponse(ticketRepository.save(ticket));
     }
 
@@ -449,6 +476,7 @@ public class TicketService {
         addStatusHistory(ticket, previousStatus, targetStatus, actor.getUserId(),
                 buildFullName(actor),
                 StringUtils.hasText(request.reason()) ? request.reason().trim() : "Status changed");
+        applySlaState(ticket, now);
         ticket.setUpdatedAt(now);
         return toResponse(ticketRepository.save(ticket));
     }
@@ -531,6 +559,7 @@ public class TicketService {
                 ticket.getStatus(),
                 toCreatedByResponse(ticket),
                 toAssignedToResponse(ticket.getAssignedTo()),
+                toDistributedByResponse(ticket.getDistributedBy()),
                 ticket.getAssignedAt(),
                 ticket.getResolvedAt(),
                 ticket.getClosedAt(),
@@ -546,6 +575,7 @@ public class TicketService {
                 toCommentResponses(ticket.getComments()),
                 toAttachmentResponses(ticket.getAttachments()),
                 toStatusHistoryResponses(ticket.getStatusHistory()),
+                toAssignmentHistoryResponses(ticket.getAssignmentHistory()),
                 toSlaEventResponses(ticket.getSlaEvents()),
                 ticket.getTags(),
                 ticket.getCustomFields(),
@@ -647,38 +677,162 @@ public class TicketService {
         ticket.setSlaDeadline(deadlines.slaDeadline());
         ticket.setEscalationDueAt(deadlines.escalationDueAt());
         ticket.setNextReminderAt(deadlines.nextReminderAt());
+        appendSlaEvent(ticket, TicketSlaEventType.SLA_APPLIED, createdAt);
     }
 
     private void applySlaState(Ticket ticket, LocalDateTime now) {
         if (ticket.getStatus() == TicketStatus.RESOLVED || ticket.getStatus() == TicketStatus.CLOSED) {
+            if (ticket.getStatus() == TicketStatus.RESOLVED
+                    && !hasSlaEvent(ticket, TicketSlaEventType.RESOLUTION_MET)) {
+                appendSlaEvent(ticket, TicketSlaEventType.RESOLUTION_MET, now);
+            }
             return;
         }
         if (slaClock.isResponseBreachedUnassigned(now, ticket)) {
-            ticket.setResponseBreached(true);
+            if (!Boolean.TRUE.equals(ticket.getResponseBreached())) {
+                ticket.setResponseBreached(true);
+                appendSlaEventOnce(ticket, TicketSlaEventType.RESPONSE_BREACHED, now);
+            }
         }
         if (ticket.getSlaDeadline() != null && ticket.getSlaBreachedAt() == null && slaClock.isBreached(now, ticket)) {
             ticket.setSlaBreachedAt(now);
+            appendSlaEventOnce(ticket, TicketSlaEventType.SLA_BREACHED, now);
         }
         if (ticket.getEscalationDueAt() != null && ticket.getEscalationLevel() != null
                 && ticket.getEscalationLevel() == 0 && now.isAfter(ticket.getEscalationDueAt())) {
             ticket.setEscalationLevel(1);
+            appendSlaEvent(ticket, TicketSlaEventType.ESCALATION_TRIGGERED, now);
         }
 
         SlaPolicy policy = slaPolicyService.findPolicy(resolvePolicyCategoryId(ticket), ticket.getPriority());
         SlaClockTargets targets = SlaClockTargets.from(policy, ticket.getPriority());
         if (ticket.getNextReminderAt() != null && now.isAfter(ticket.getNextReminderAt())) {
+            appendSlaEvent(ticket, TicketSlaEventType.DEADLINE_APPROACHING, now);
             ticket.setNextReminderAt(now.plusHours(targets.reminderThresholdHours()));
         }
     }
 
-    private void recordFirstAssignment(Ticket ticket, LocalDateTime assignedAt) {
-        ticket.setAssignedAt(assignedAt);
+    private void recordFirstResponseIfNeeded(Ticket ticket, LocalDateTime assignedAt) {
         if (ticket.getFirstResponseMinutes() != null) {
             return;
         }
         long minutes = slaClock.calculateFirstResponseMinutes(ticket, assignedAt);
         ticket.setFirstResponseMinutes(minutes);
-        ticket.setResponseBreached(slaClock.isResponseBreached(assignedAt, ticket.getResponseDeadline()));
+        boolean breached = slaClock.isResponseBreached(assignedAt, ticket.getResponseDeadline());
+        ticket.setResponseBreached(breached);
+        appendSlaEventOnce(ticket,
+                breached ? TicketSlaEventType.RESPONSE_BREACHED : TicketSlaEventType.RESPONSE_MET,
+                assignedAt);
+    }
+
+    private void appendSlaEventOnce(Ticket ticket, TicketSlaEventType type, LocalDateTime at) {
+        if (hasSlaEvent(ticket, type)) {
+            return;
+        }
+        appendSlaEvent(ticket, type, at);
+    }
+
+    private boolean hasSlaEvent(Ticket ticket, TicketSlaEventType type) {
+        if (ticket.getSlaEvents() == null) {
+            return false;
+        }
+        return ticket.getSlaEvents().stream().anyMatch(e -> e.getEventType() == type);
+    }
+
+    private void appendSlaEvent(Ticket ticket, TicketSlaEventType type, LocalDateTime at) {
+        TicketSlaEvent event = new TicketSlaEvent();
+        event.setEventType(type);
+        event.setTriggeredAt(at);
+        ticket.getSlaEvents().add(event);
+    }
+
+    /**
+     * Closes any open assignment tenure and opens a new one for {@code assignee}.
+     * Never clears {@code assignedTo}.
+     */
+    private void changeAssignee(Ticket ticket, User assignee, User actedBy, TicketAssignmentAction action,
+            String reason, LocalDateTime now) {
+        changeAssignee(ticket, assignee, actedBy, action, reason, now,
+                actedBy != null ? actedBy.getUserId() : SYSTEM_ACTOR,
+                actedBy != null ? buildFullName(actedBy) : "System");
+    }
+
+    private void changeAssignee(Ticket ticket, User assignee, User actedBy, TicketAssignmentAction action,
+            String reason, LocalDateTime now, String actedByUserId, String actedByName) {
+        if (ticket.getAssignedTo() != null
+                && assignee.getUserId().equals(ticket.getAssignedTo().getUserId())) {
+            ticket.setAssignedAt(now);
+            return;
+        }
+
+        closeOpenAssignmentHistory(ticket, now);
+
+        ticket.setAssignedTo(new TicketAssignedTo(buildFullName(assignee), assignee.getUserId(), assignee.getRole()));
+        ticket.setAssignedAt(now);
+
+        TicketAssignmentHistory history = new TicketAssignmentHistory();
+        history.setUserId(assignee.getUserId());
+        history.setName(buildFullName(assignee));
+        history.setRole(assignee.getRole());
+        history.setFromAt(now);
+        history.setAction(action);
+        history.setActedByUserId(actedByUserId);
+        history.setActedByName(actedByName);
+        history.setReason(reason);
+        if (action == TicketAssignmentAction.DISTRIBUTED && actedBy != null) {
+            history.setDistributedByUserId(actedBy.getUserId());
+        } else if (ticket.getDistributedBy() != null) {
+            history.setDistributedByUserId(ticket.getDistributedBy().getUserId());
+        }
+        ticket.getAssignmentHistory().add(history);
+    }
+
+    private void closeOpenAssignmentHistory(Ticket ticket, LocalDateTime now) {
+        if (ticket.getAssignmentHistory() == null || ticket.getAssignmentHistory().isEmpty()) {
+            return;
+        }
+        for (int i = ticket.getAssignmentHistory().size() - 1; i >= 0; i--) {
+            TicketAssignmentHistory open = ticket.getAssignmentHistory().get(i);
+            if (open.getToAt() == null) {
+                open.setToAt(now);
+                LocalDateTime fromAt = open.getFromAt() != null ? open.getFromAt() : now;
+                open.setDurationMinutes(Math.max(0, Duration.between(fromAt, now).toMinutes()));
+                return;
+            }
+        }
+    }
+
+    private TicketDistributedByResponse toDistributedByResponse(TicketDistributedBy distributedBy) {
+        if (distributedBy == null) {
+            return null;
+        }
+        return new TicketDistributedByResponse(distributedBy.getUserId(), distributedBy.getName(), distributedBy.getRole());
+    }
+
+    private List<TicketAssignmentHistoryResponse> toAssignmentHistoryResponses(List<TicketAssignmentHistory> history) {
+        if (history == null || history.isEmpty()) {
+            return List.of();
+        }
+        return history.stream().map(this::toAssignmentHistoryResponse).collect(Collectors.toList());
+    }
+
+    private TicketAssignmentHistoryResponse toAssignmentHistoryResponse(TicketAssignmentHistory history) {
+        Long duration = history.getDurationMinutes();
+        if (duration == null && history.getFromAt() != null && history.getToAt() == null) {
+            duration = Math.max(0, Duration.between(history.getFromAt(), LocalDateTime.now()).toMinutes());
+        }
+        return new TicketAssignmentHistoryResponse(
+                history.getUserId(),
+                history.getName(),
+                history.getRole(),
+                history.getFromAt(),
+                history.getToAt(),
+                duration,
+                history.getAction(),
+                history.getActedByUserId(),
+                history.getActedByName(),
+                history.getReason(),
+                history.getDistributedByUserId());
     }
 
     private void applyStatusTimestamps(Ticket ticket, TicketStatus status, LocalDateTime now) {

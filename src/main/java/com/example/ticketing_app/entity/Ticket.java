@@ -41,6 +41,7 @@ public class Ticket {
 	private TicketStatus status = TicketStatus.NEW;
 	private TicketCreatedBy createdBy;
 	private TicketAssignedTo assignedTo;
+	private TicketDistributedBy distributedBy;
 	private LocalDateTime assignedAt;
 	private LocalDateTime resolvedAt;
 	private LocalDateTime closedAt;
@@ -58,6 +59,7 @@ public class Ticket {
 	private List<TicketComment> comments = new ArrayList<>();
 	private List<TicketAttachment> attachments = new ArrayList<>();
 	private List<TicketStatusHistory> statusHistory = new ArrayList<>();
+	private List<TicketAssignmentHistory> assignmentHistory = new ArrayList<>();
 	private List<TicketSlaEvent> slaEvents = new ArrayList<>();
 	private List<String> tags = new ArrayList<>();
 	private Map<String, Object> customFields = new HashMap<>();

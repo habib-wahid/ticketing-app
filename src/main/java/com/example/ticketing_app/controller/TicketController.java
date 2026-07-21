@@ -8,6 +8,7 @@ import com.example.ticketing_app.dto.TicketCommentResponse;
 import com.example.ticketing_app.dto.TicketCommentUpdateRequest;
 import com.example.ticketing_app.dto.TicketCreateRequest;
 import com.example.ticketing_app.dto.TicketResponse;
+import com.example.ticketing_app.dto.TicketReturnRequest;
 import com.example.ticketing_app.dto.AssignedTicketSearchRequest;
 import com.example.ticketing_app.dto.TicketSearchRequest;
 import com.example.ticketing_app.dto.TicketStatusChangeRequest;
@@ -126,8 +127,18 @@ public class TicketController {
 
 	@PostMapping("/{ticketId}/assign")
 	public ResponseEntity<ApiResponse<TicketResponse>> assign(@PathVariable String ticketId,
-			@Valid @RequestBody TicketAssignRequest request) {
-		return ResponseEntity.ok(ApiResponse.success("Ticket assigned", ticketService.assign(ticketId, request)));
+			@Valid @RequestBody TicketAssignRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket assigned",
+				ticketService.assign(ticketId, request, actor(principal))));
+	}
+
+	@PostMapping("/{ticketId}/return-to-distributor")
+	public ResponseEntity<ApiResponse<TicketResponse>> returnToDistributor(@PathVariable String ticketId,
+			@RequestBody(required = false) TicketReturnRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(ApiResponse.success("Ticket returned to distributor",
+				ticketService.returnToDistributor(ticketId, request, actor(principal))));
 	}
 
 	@PutMapping(value = "/{ticketId}", consumes = MediaType.APPLICATION_JSON_VALUE)
